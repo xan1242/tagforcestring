@@ -1,10 +1,11 @@
 // Yu-Gi-Oh! Tag Force Language Tool
 // by Xan
-// TODO: add UTF-8 read mode
+// TODO: add string reusage
 
 #include "stdafx.h"
 #include <stdlib.h>
 #include <string.h>
+#include "TagForceString.h"
 
 unsigned int StringCount = 0;
 unsigned int* OffsetList;
@@ -14,6 +15,8 @@ wchar_t** StringList;
 char* MBStringBuffer;
 char** MBStringList;
 struct stat st = { 0 };
+
+bool MBMode = false;
 
 int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 {
@@ -51,15 +54,27 @@ int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 		printf("ERROR: Can't find %s during size parsing for language file!\n", InLangFile);
 		return -1;
 	}
-	StringBuffer = (wchar_t*)calloc(st.st_size, sizeof(char));
-	StringList = (wchar_t**)calloc(StringCount, sizeof(wchar_t*));
-
-	fread(StringBuffer, st.st_size, 1, flang);
+	if (MBMode)
+	{
+		MBStringBuffer = (char*)calloc(st.st_size, sizeof(char));
+		MBStringList = (char**)calloc(StringCount, sizeof(char*));
+		fread(MBStringBuffer, st.st_size, 1, flang);
+	}
+	else
+	{
+		StringBuffer = (wchar_t*)calloc(st.st_size, sizeof(char));
+		StringList = (wchar_t**)calloc(StringCount, sizeof(wchar_t*));
+		fread(StringBuffer, st.st_size, 1, flang);
+	}
+	
 	fclose(flang);
 
 	for (unsigned int i = 0; i < StringCount; i++)
 	{
-		StringList[i] = (wchar_t*)((unsigned int)StringBuffer + OffsetList[i] + OffsetList[i]);
+		if (MBMode)
+			MBStringList[i] = (char*)((unsigned int)MBStringBuffer + OffsetList[i]);
+		else
+			StringList[i] = (wchar_t*)((unsigned int)StringBuffer + OffsetList[i] + OffsetList[i]);
 	}
 	
 	return 0;
@@ -76,11 +91,17 @@ int SpitStringsToFile(const char* InLangFile, const char* OutFilename)
 		return -1;
 	}
 
-	fwprintf(fout, L"%ld\n", StringCount);
+	if (MBMode)
+		fprintf(fout, "%d\n", StringCount);
+	else
+		fwprintf(fout, L"%ld\n", StringCount);
 
 	for (unsigned int i = 0; i < StringCount; i++)
 	{
-		fwprintf(fout, L"[%ld]\n%ls\n", i, StringList[i]);
+		if (MBMode)
+			fprintf(fout, "[%d]\n%s\n", i, MBStringList[i]);
+		else
+			fwprintf(fout, L"[%ld]\n%ls\n", i, StringList[i]);
 	}
 
 	fclose(fout);
@@ -141,7 +162,6 @@ int ParseUTF16Text(const char* InFilename)
 	
 
 	return 0;
-
 }
 
 int ParseUTF8Text(const char* InFilename)
@@ -162,7 +182,7 @@ int ParseUTF8Text(const char* InFilename)
 
 	if (stat(InFilename, &st))
 	{
-		printf("ERROR: Can't find %s during UTF-16 parsing!\n", InFilename);
+		printf("ERROR: Can't find %s during UTF-8 parsing!\n", InFilename);
 		return -1;
 	}
 	fscanf(fin, "%d\n", &StringCount);
@@ -176,10 +196,10 @@ int ParseUTF8Text(const char* InFilename)
 
 	for (unsigned int i = 0; i < StringCount; i++)
 	{
-		startpoint = (char*)strchr(cursor, L']');
+		startpoint = (char*)strchr(cursor, ']');
 
 		startpoint += 2;
-		endpoint = (char*)strchr(startpoint, L'[');
+		endpoint = (char*)strchr(startpoint, '[');
 		if (endpoint)
 		{
 			cursor = endpoint;
@@ -279,10 +299,7 @@ int main(int argc, char *argv[])
 	printf("Yu-Gi-Oh! Tag Force Language Tool\n");
 	if (argc < 4)
 	{
-		printf("USAGE: %s InLanguageFile InOffsetFile OutFile\n", argv[0]);
-		printf("USAGE (write): %s -w InTextFile OutLangFile OutOffsetFile\n", argv[0]);
-		printf("USAGE (write UTF-8): %s -w8 InTextFile OutLangFile OutOffsetFile\n", argv[0]);
-
+		printf(TFS_HELPTEXTSTRING);
 		return -1;
 	}
 
@@ -300,9 +317,16 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
+	if (argv[1][0] == '-' && argv[1][1] == '8') // Read mode UTF-8
+	{
+		MBMode = true;
+		ParseStrings(argv[2], argv[3]);
+		SpitStringsToFile(argv[2], argv[4]);
+		return 0;
+	}
+
 	ParseStrings(argv[1], argv[2]);
 	SpitStringsToFile(argv[1], argv[3]);
 
     return 0;
 }
-
