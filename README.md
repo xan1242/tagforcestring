@@ -13,6 +13,7 @@ Specifically the files located in script/story_scr_x.ehp (EveIx.bin and EveLx.bi
 
 ```
 USAGE: TagForceString InLanguageFile InOffsetFile OutFile
+USAGE (UTF-8): TagForceString -8 InLanguageFile InOffsetFile OutFile
 USAGE (write): TagForceString -w InTextFile OutLangFile OutOffsetFile
 USAGE (write UTF-8): TagForceString -w8 InTextFile OutLangFile OutOffsetFile
 USAGE (Tag Force 1 folder): TagForceString -1 InFolder OutFolder [LanguageLetter] (example: e = English)
