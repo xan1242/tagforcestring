@@ -1,10 +1,17 @@
 // Yu-Gi-Oh! Tag Force Language Tool
 // by Xan
 // TODO: add string reusage
+// TODO: TF1 folder mode - fix memory leaks
+// TODO: TF1 folder mode - integrate zlib directly to this
 
 #include "stdafx.h"
 #include <stdlib.h>
 #include <string.h>
+#ifdef WIN32
+#include <windows.h>
+#include <strsafe.h>
+#endif
+
 #include "TagForceString.h"
 
 unsigned int StringCount = 0;
@@ -17,6 +24,19 @@ char** MBStringList;
 struct stat st = { 0 };
 
 bool MBMode = false;
+
+// TF1 folder stuff
+bool bTF1FolderMode = false;
+unsigned int FileCount;
+char** FileDirectoryListing;
+bool* bCompressedFileMarkers;
+char BaseName[1024];
+char IDFilePath[1024];
+char StrFilePath[1024];
+char OutFilePath[1024];
+wchar_t MkDirPath[1024];
+char LanguageLetter = 'e'; // possible Tag Force languages: j, e, g, f, i, s
+char SystemCmdBuffer[1024];
 
 int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 {
@@ -54,6 +74,16 @@ int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 		printf("ERROR: Can't find %s during size parsing for language file!\n", InLangFile);
 		return -1;
 	}
+
+	// boundary check for the offset list - early versions of files used last offset as a size descriptor
+	if ((OffsetList[StringCount - 1] * 2) == (st.st_size))
+	{
+		if (!bTF1FolderMode)
+			printf("WARNING: Last offset is out of bounds! You may be using an old variant of the file.\n");
+		StringCount--;
+	}
+		
+
 	if (MBMode)
 	{
 		MBStringBuffer = (char*)calloc(st.st_size, sizeof(char));
@@ -80,7 +110,7 @@ int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 	return 0;
 }
 
-int SpitStringsToFile(const char* InLangFile, const char* OutFilename)
+int SpitStringsToFile(const char* OutFilename)
 {
 	FILE* fout = fopen(OutFilename, "wb");
 
@@ -294,6 +324,210 @@ int ExportUTF8LangFiles(const char* OutLangFile, const char* OutOffsetFile)
 	return 0;
 }
 
+#ifdef WIN32
+DWORD GetDirectoryListing(const char* FolderPath) // platform specific code, using Win32 here, GNU requires use of dirent which MSVC doesn't have
+{
+	WIN32_FIND_DATA ffd = { 0 };
+	TCHAR  szDir[MAX_PATH];
+	char MBFilename[MAX_PATH];
+	HANDLE hFind = INVALID_HANDLE_VALUE;
+	DWORD dwError = 0;
+	unsigned int NameCounter = 0;
+
+	mbstowcs(szDir, FolderPath, MAX_PATH);
+	StringCchCat(szDir, MAX_PATH, TEXT("\\*"));
+
+	if (strlen(FolderPath) > (MAX_PATH - 3))
+	{
+		_tprintf(TEXT("Directory path is too long.\n"));
+		return -1;
+	}
+
+	hFind = FindFirstFile(szDir, &ffd);
+
+	if (INVALID_HANDLE_VALUE == hFind)
+	{
+		printf("FindFirstFile error\n");
+		return dwError;
+	}
+
+	// count the files up first
+	do
+	{
+		if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			FileCount++;
+		}
+	} while (FindNextFile(hFind, &ffd) != 0);
+
+	dwError = GetLastError();
+	if (dwError != ERROR_NO_MORE_FILES)
+	{
+		printf("FindFirstFile error\n");
+	}
+	FindClose(hFind);
+
+	// then create a file list in an array, redo the code
+	FileDirectoryListing = (char**)calloc(FileCount, sizeof(char*));
+	bCompressedFileMarkers = (bool*)calloc(FileCount, sizeof(bool));
+	//FileSizes = (unsigned int*)calloc(FileCount, sizeof(unsigned int*));
+
+	ffd = { 0 };
+	hFind = FindFirstFile(szDir, &ffd);
+	if (INVALID_HANDLE_VALUE == hFind)
+	{
+		printf("FindFirstFile error\n");
+		return dwError;
+	}
+
+	do
+	{
+		if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			wcstombs(MBFilename, ffd.cFileName, MAX_PATH);
+			FileDirectoryListing[NameCounter] = (char*)calloc(strlen(MBFilename) + 1, sizeof(char));
+			strcpy(FileDirectoryListing[NameCounter], MBFilename);
+			NameCounter++;
+		}
+	} while (FindNextFile(hFind, &ffd) != 0);
+
+	dwError = GetLastError();
+	if (dwError != ERROR_NO_MORE_FILES)
+	{
+		printf("FindFirstFile error\n");
+	}
+
+	FindClose(hFind);
+	return dwError;
+}
+#else
+void GetDirectoryListing(const char* FolderPath)
+{
+	printf("Directory listing unimplemented for non-Win32 platforms.\n");
+}
+#endif
+
+int ProcessTagForce1Folder(const char* InFolder, const char* OutFolder, const char InLanguageLetter) // TF1 has split files, this processes them recursively, gzip used where necessary
+{
+	char* FilenameEndPoint = 0;
+
+	// get dir list and detect which are compressed behind gzip
+	GetDirectoryListing(InFolder);
+	for (unsigned int i = 0; i < FileCount; i++)
+	{
+		if (strcmp(strrchr(FileDirectoryListing[i], '.'), ".gz") == 0)
+			bCompressedFileMarkers[i] = true;
+	}
+
+	// prep the output directory
+	// check for folder existence, if it doesn't exist, make it
+	if (stat(OutFolder, &st))
+	{
+		printf("Creating folder: %s\n", OutFolder);
+		mbstowcs(MkDirPath, OutFolder, 1024);
+		_wmkdir(MkDirPath);
+	}
+
+	// since there are always pairs of I*.bin and L*.bin files, we must always expect them to be together in the folder
+	for (unsigned int i = 0; i < FileCount; i+=2)
+	{
+		strcpy(BaseName, FileDirectoryListing[i]);
+		FilenameEndPoint = strchr(BaseName, '.') - 2;
+		*FilenameEndPoint = 0;
+
+		printf("Extracting: %s\n", BaseName);
+		if (bCompressedFileMarkers[i])
+		{
+			sprintf(IDFilePath, "%s\\%sI%c.bin.gz", InFolder, BaseName, InLanguageLetter);
+			sprintf(StrFilePath, "%s\\%sL%c.bin.gz", InFolder, BaseName, InLanguageLetter);
+			sprintf(OutFilePath, "%s\\%s.gz.txt", OutFolder, BaseName);
+
+			// decompression time
+			// to avoid modifying the input directory, we must copy the input files to a temporary location (next to the binary)
+			// this can be fixed by implementing zlib directly to this program
+			// right now we're just using the gzip binary
+			sprintf(SystemCmdBuffer, "@copy /Y \"%s\" tempI.bin.gz > NUL", IDFilePath);
+			system(SystemCmdBuffer);
+			sprintf(SystemCmdBuffer, "@copy /Y \"%s\" tempL.bin.gz > NUL", StrFilePath);
+			system(SystemCmdBuffer);
+			sprintf(SystemCmdBuffer, "@gzip -d -f -q tempI.bin.gz");
+			system(SystemCmdBuffer);
+			sprintf(SystemCmdBuffer, "@gzip -d -f -q tempL.bin.gz");
+			system(SystemCmdBuffer);
+
+			ParseStrings("tempL.bin", "tempI.bin");
+			SpitStringsToFile(OutFilePath);
+		}
+		else
+		{
+			sprintf(IDFilePath, "%s\\%sI%c.bin", InFolder, BaseName, InLanguageLetter);
+			sprintf(StrFilePath, "%s\\%sL%c.bin", InFolder, BaseName, InLanguageLetter);
+			sprintf(OutFilePath, "%s\\%s.txt", OutFolder, BaseName);
+
+			ParseStrings(StrFilePath, IDFilePath);
+			SpitStringsToFile(OutFilePath);
+		}
+	}
+
+	return 0;
+}
+
+int RepackTagForce1Folder(const char* InFolder, const char* OutFolder, const char InLanguageLetter)
+{
+	// get dir list and detect which are compressed behind gzip
+	GetDirectoryListing(InFolder);
+	for (unsigned int i = 0; i < FileCount; i++)
+	{
+		if (strcmp(strchr(FileDirectoryListing[i], '.'), ".gz.txt") == 0)
+			bCompressedFileMarkers[i] = true;
+	}
+
+	// prep the output directory
+	// check for folder existence, if it doesn't exist, make it
+	if (stat(OutFolder, &st))
+	{
+		printf("Creating folder: %s\n", OutFolder);
+		mbstowcs(MkDirPath, OutFolder, 1024);
+		_wmkdir(MkDirPath);
+	}
+
+	for (unsigned int i = 0; i < FileCount; i++)
+	{
+		strcpy(BaseName, FileDirectoryListing[i]);
+		*strchr(BaseName, '.') = 0;
+
+		printf("Repacking: %s\n", BaseName);
+		if (bCompressedFileMarkers[i])
+		{
+			sprintf(OutFilePath, "%s\\%s.gz.txt", InFolder, BaseName);
+			sprintf(IDFilePath, "%s\\%sI%c.bin", OutFolder, BaseName, InLanguageLetter);
+			sprintf(StrFilePath, "%s\\%sL%c.bin", OutFolder, BaseName, InLanguageLetter);
+
+			ParseUTF16Text(OutFilePath);
+			ExportUTF16LangFiles(StrFilePath, IDFilePath);
+
+			// compression time
+			sprintf(SystemCmdBuffer, "@gzip -f -q \"%s\"", StrFilePath);
+			system(SystemCmdBuffer);
+			sprintf(SystemCmdBuffer, "@gzip -f -q \"%s\"", IDFilePath);
+			system(SystemCmdBuffer);
+		}
+		else
+		{
+			sprintf(OutFilePath, "%s\\%s.txt", InFolder, BaseName);
+			sprintf(IDFilePath, "%s\\%sI%c.bin", OutFolder, BaseName, InLanguageLetter);
+			sprintf(StrFilePath, "%s\\%sL%c.bin", OutFolder, BaseName, InLanguageLetter);
+
+			ParseUTF16Text(OutFilePath);
+			ExportUTF16LangFiles(StrFilePath, IDFilePath);
+		}
+
+	}
+
+	return 0;
+
+}
+
 int main(int argc, char *argv[])
 {
 	printf("Yu-Gi-Oh! Tag Force Language Tool\n");
@@ -312,6 +546,18 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
+		if (argv[1][2] == '1') // TF1
+		{
+			bTF1FolderMode = true;
+			if (argc < 5)
+				printf("Missing LanguageLetter parameter! Defaulting to English (e)!\n");
+			else
+				LanguageLetter = argv[4][0];
+
+			RepackTagForce1Folder(argv[2], argv[3], LanguageLetter);
+			return 0;
+		}
+
 		ParseUTF16Text(argv[2]);
 		ExportUTF16LangFiles(argv[3], argv[4]);
 		return 0;
@@ -321,12 +567,24 @@ int main(int argc, char *argv[])
 	{
 		MBMode = true;
 		ParseStrings(argv[2], argv[3]);
-		SpitStringsToFile(argv[2], argv[4]);
+		SpitStringsToFile(argv[4]);
+		return 0;
+	}
+
+	if (argv[1][0] == '-' && argv[1][1] == '1') // Read mode TF1
+	{
+		bTF1FolderMode = true;
+		if (argc < 5)
+			printf("Missing LanguageLetter parameter! Defaulting to English (e)!\n");
+		else
+			LanguageLetter = argv[4][0];
+
+		ProcessTagForce1Folder(argv[2], argv[3], LanguageLetter);
 		return 0;
 	}
 
 	ParseStrings(argv[1], argv[2]);
-	SpitStringsToFile(argv[1], argv[3]);
+	SpitStringsToFile(argv[3]);
 
     return 0;
 }
