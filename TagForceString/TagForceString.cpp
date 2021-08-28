@@ -1,8 +1,9 @@
-// Yu-Gi-Oh! Tag Force Language Tool
+﻿// Yu-Gi-Oh! Tag Force Language Tool
 // by Xan
 // TODO: add string reusage
 // TODO: TF1 folder mode - fix memory leaks
 // TODO: TF1 folder mode - integrate zlib directly to this
+// 08.2021. - BOM & single-line mode support - SOURCE FILE IS NOW UNICODE
 
 #include "stdafx.h"
 #include <stdlib.h>
@@ -45,6 +46,22 @@ struct WordsTbl
 	unsigned int HeaderSize;
 	unsigned int FullHeaderSize;
 };
+
+unsigned int CountLinesInFile(const char* InFilename)
+{
+	FILE* finput = fopen(InFilename, "rb");
+	unsigned int LineCount = 0;
+	wchar_t ReadCh;
+
+	while (!feof(finput)) // WRONG WRONG WRONG
+	{
+		fread(&ReadCh, sizeof(wchar_t), 1, finput);
+		if (ReadCh == L'\n')
+			LineCount++;
+	}
+	fclose(finput);
+	return LineCount - 1;
+}
 
 int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 {
@@ -131,9 +148,22 @@ int SpitStringsToFile(const char* OutFilename)
 	}
 
 	if (MBMode)
+	{
+		// write BOM
+		fputc(0xEF, fout);
+		fputc(0xBB, fout);
+		fputc(0xBF, fout);
+
 		fprintf(fout, "%d\n", StringCount);
+	}
 	else
+	{
+		// write BOM
+		fputc(0xFF, fout);
+		fputc(0xFE, fout);
+
 		fwprintf(fout, L"%ld\n", StringCount);
+	}
 
 	for (unsigned int i = 0; i < StringCount; i++)
 	{
@@ -154,6 +184,7 @@ int ParseUTF16Text(const char* InFilename)
 	wchar_t* cursor = NULL;
 	wchar_t* startpoint = NULL;
 	wchar_t* endpoint = NULL;
+	unsigned int BOMdetector = 0;
 
 	if (!fin)
 	{
@@ -169,6 +200,13 @@ int ParseUTF16Text(const char* InFilename)
 		printf("ERROR: Can't find %s during UTF-16 parsing!\n", InFilename);
 		return -1;
 	}
+	// if BOM, skip BOM
+	fread(&BOMdetector, sizeof(int), 1, fin);
+	if ((BOMdetector & 0xFFFF) == 0xFEFF)
+		fseek(fin, -2, SEEK_CUR);
+	else
+		fseek(fin, -4, SEEK_CUR);
+
 	fwscanf(fin, L"%ld\n", &StringCount);
 	StringBuffer = (wchar_t*)calloc(st.st_size, sizeof(char));
 	StringList = (wchar_t**)calloc(StringCount, sizeof(wchar_t*));
@@ -209,6 +247,7 @@ int ParseUTF8Text(const char* InFilename)
 	char* cursor = NULL;
 	char* startpoint = NULL;
 	char* endpoint = NULL;
+	unsigned int BOMdetector = 0;
 
 	if (!fin)
 	{
@@ -224,6 +263,13 @@ int ParseUTF8Text(const char* InFilename)
 		printf("ERROR: Can't find %s during UTF-8 parsing!\n", InFilename);
 		return -1;
 	}
+	// if BOM, skip BOM
+	fread(&BOMdetector, sizeof(int), 1, fin);
+	if ((BOMdetector & 0xFFFFFF) == 0xBFBBEF)
+		fseek(fin, -1, SEEK_CUR);
+	else
+		fseek(fin, -4, SEEK_CUR);
+
 	fscanf(fin, "%d\n", &StringCount);
 	MBStringBuffer = (char*)calloc(st.st_size, sizeof(char));
 	MBStringList = (char**)calloc(StringCount, sizeof(char*));
@@ -257,6 +303,163 @@ int ParseUTF8Text(const char* InFilename)
 
 	return 0;
 
+}
+
+int ParseUTF16Text_SingleLine(const char* InFilename) // format used by Clickclaxer01 in his projects, adding the parsing support here...
+{
+	wchar_t* cursor = NULL;
+	wchar_t* startpoint = NULL;
+	wchar_t* endpoint = NULL;
+	unsigned int BOMdetector = 0;
+
+	int strlength = 0;
+	wchar_t* cursor_repl = NULL;
+	wchar_t* startpoint_repl = NULL;
+
+	StringCount = CountLinesInFile(InFilename);
+	StringList = (wchar_t**)calloc(StringCount, sizeof(wchar_t*));
+
+	if (stat(InFilename, &st))
+	{
+		printf("ERROR: Can't find %s!\n", InFilename);
+		return -1;
+	}
+
+	FILE* fin = fopen(InFilename, "rb");
+	// if BOM, skip BOM
+	fread(&BOMdetector, sizeof(int), 1, fin);
+	if ((BOMdetector & 0xFFFF) == 0xFEFF)
+		fseek(fin, -2, SEEK_CUR);
+	else
+		fseek(fin, -4, SEEK_CUR);
+
+	StringBuffer = (wchar_t*)calloc(st.st_size, sizeof(char));
+	fread(StringBuffer, st.st_size, 1, fin);
+	fclose(fin);
+
+	OffsetList = (unsigned int*)calloc(StringCount + 1, sizeof(unsigned int));
+
+
+	cursor = StringBuffer;
+
+	for (unsigned int i = 0; i < StringCount; i++)
+	{
+		startpoint = wcschr(cursor, L'＾') + 1;
+		endpoint = wcschr(startpoint, L'\r');
+		if (endpoint)
+		{
+			cursor = endpoint + 1;
+			//endpoint -= 1;
+			*endpoint = L'\0';
+		}
+		else
+		{
+			endpoint = startpoint + wcslen(startpoint) - 1;
+			*endpoint = 0;
+		}
+
+		// replace <N> with \n and move the rest of the text back by 2 chars (copy it back)
+		strlength = wcslen(startpoint);
+		cursor_repl = startpoint;
+		while (cursor_repl < strlength + startpoint)
+		{
+			startpoint_repl = wcsstr(cursor_repl, L"<N>");
+			if (startpoint_repl)
+			{
+				*startpoint_repl = L'\n';
+				cursor_repl = startpoint_repl + 1; // maybe do * sizeof(wchar_t) if it bugs out on movement!
+				startpoint_repl += 3;
+				wcscpy(cursor_repl, startpoint_repl);
+			}
+			else
+				break;
+		}
+
+		OffsetList[i + 1] = (wcslen(startpoint) + 1) + OffsetList[i];
+		StringList[i] = startpoint;
+		strlength = 0;
+	}
+
+	return 0;
+}
+
+int ParseUTF8Text_SingleLine(const char* InFilename) // format used by Clickclaxer01 in his projects, adding the parsing support here...
+{
+	char* cursor = NULL;
+	char* startpoint = NULL;
+	char* endpoint = NULL;
+	unsigned int BOMdetector = 0;
+
+	int strlength = 0;
+	char* cursor_repl = NULL;
+	char* startpoint_repl = NULL;
+
+	StringCount = CountLinesInFile(InFilename);
+	MBStringList = (char**)calloc(StringCount, sizeof(char*));
+
+	if (stat(InFilename, &st))
+	{
+		printf("ERROR: Can't find %s!\n", InFilename);
+		return -1;
+	}
+
+	FILE* fin = fopen(InFilename, "rb");
+	// if BOM, skip BOM
+	fread(&BOMdetector, sizeof(int), 1, fin);
+	if ((BOMdetector & 0xFFFFFF) == 0xBFBBEF)
+		fseek(fin, -1, SEEK_CUR);
+	else
+		fseek(fin, -4, SEEK_CUR);
+
+	MBStringBuffer = (char*)calloc(st.st_size, sizeof(char));
+	fread(MBStringBuffer, st.st_size, 1, fin);
+	fclose(fin);
+
+	OffsetList = (unsigned int*)calloc(StringCount + 1, sizeof(unsigned int));
+
+
+	cursor = MBStringBuffer;
+
+	for (unsigned int i = 0; i < StringCount; i++)
+	{
+		//startpoint = strchr(cursor, '＾') + 1;
+		startpoint = strstr(cursor, "\xEF\xBC\xBE");
+		endpoint = strchr(startpoint, '\r');
+		if (endpoint)
+		{
+			cursor = endpoint + 1;
+			//endpoint -= 1;
+			*endpoint = '\0';
+		}
+		else
+		{
+			endpoint = startpoint + strlen(startpoint) - 1;
+			*endpoint = 0;
+		}
+
+		// replace <N> with \n and move the rest of the text back by 2 chars (copy it back)
+		strlength = strlen(startpoint);
+		cursor_repl = startpoint;
+		while (cursor_repl < strlength + startpoint)
+		{
+			startpoint_repl = strstr(cursor_repl, "<N>");
+			if (startpoint_repl)
+			{
+				*startpoint_repl = '\n';
+				cursor_repl = startpoint_repl + 1;
+				startpoint_repl += 3;
+				strcpy(cursor_repl, startpoint_repl);
+			}
+			else
+				break;
+		}
+
+		OffsetList[i + 1] = (strlen(startpoint) + 1) + OffsetList[i];
+		MBStringList[i] = startpoint;
+		strlength = 0;
+	}
+
+	return 0;
 }
 
 int ExportUTF16LangFiles(const char* OutLangFile, const char* OutOffsetFile)
@@ -416,6 +619,53 @@ void GetDirectoryListing(const char* FolderPath)
 }
 #endif
 
+int DetectEncodingType(const char* Filename)
+{
+	FILE* fin = fopen(Filename, "rb");
+
+	if (!fin)
+	{
+		printf("ERROR: Can't open text file %s for reading!\n", Filename);
+		perror("ERROR");
+		return -1;
+	}
+
+	unsigned int ReadBytes = 0;
+
+	fread(&ReadBytes, sizeof(int), 1, fin);
+	
+	// detect UTF-8 BOM
+	if ((ReadBytes & 0xFFFFFF) == 0xBFBBEF)
+	{
+		fseek(fin, 3, SEEK_SET);
+		fread(&ReadBytes, sizeof(int), 1, fin);
+		// we care for the data at the topmost 3 bytes to detect singleline
+		if ((ReadBytes & 0xFFFF0000) >> 8 == 0xBEBCEF)
+			return ENCODETYPE_UTF8_SL;
+		return ENCODETYPE_UTF8;
+	}
+
+	// detect UTF-16 BOM
+	if ((ReadBytes & 0xFFFF) == 0xFEFF)
+	{
+		fseek(fin, 2, SEEK_SET);
+		fread(&ReadBytes, sizeof(int), 1, fin);
+		// we care for the data at the topmost 2 bytes to detect singleline
+		if ((ReadBytes & 0xFFFF0000) >> 16 == 0xFF3E)
+			return ENCODETYPE_UTF16_SL;
+		return ENCODETYPE_UTF16;
+	}
+
+	// test for singleline with no BOM
+	if ((ReadBytes & 0xFFFF0000) >> 8 == 0xBEBCEF)
+		return ENCODETYPE_UTF8_SL;
+	if ((ReadBytes & 0xFFFF0000) >> 16 == 0xFF3E)
+		return ENCODETYPE_UTF16_SL;
+
+	fclose(fin);
+	return ENCODETYPE_UNK;
+}
+
 int ProcessTagForce1Folder(const char* InFolder, const char* OutFolder, const char InLanguageLetter) // TF1 has split files, this processes them recursively, gzip used where necessary
 {
 	char* FilenameEndPoint = 0;
@@ -512,8 +762,26 @@ int RepackTagForce1Folder(const char* InFolder, const char* OutFolder, const cha
 			sprintf(IDFilePath, "%s\\%sI%c.bin", OutFolder, BaseName, InLanguageLetter);
 			sprintf(StrFilePath, "%s\\%sL%c.bin", OutFolder, BaseName, InLanguageLetter);
 
-			ParseUTF16Text(OutFilePath);
-			ExportUTF16LangFiles(StrFilePath, IDFilePath);
+			switch (DetectEncodingType(OutFilePath))
+			{
+			case ENCODETYPE_UTF8_SL:
+				ParseUTF8Text_SingleLine(OutFilePath);
+				ExportUTF8LangFiles(StrFilePath, IDFilePath);
+				break;
+			case ENCODETYPE_UTF8:
+				ParseUTF8Text(OutFilePath);
+				ExportUTF8LangFiles(StrFilePath, IDFilePath);
+				break;
+			case ENCODETYPE_UTF16_SL:
+				ParseUTF16Text_SingleLine(OutFilePath);
+				ExportUTF16LangFiles(StrFilePath, IDFilePath);
+				break;
+			case ENCODETYPE_UTF16:
+			default:
+				ParseUTF16Text(OutFilePath); // UTF-16 default
+				ExportUTF16LangFiles(StrFilePath, IDFilePath);
+				break;
+			}
 
 			// compression time
 			sprintf(SystemCmdBuffer, "@gzip -f -q \"%s\"", StrFilePath);
@@ -527,8 +795,26 @@ int RepackTagForce1Folder(const char* InFolder, const char* OutFolder, const cha
 			sprintf(IDFilePath, "%s\\%sI%c.bin", OutFolder, BaseName, InLanguageLetter);
 			sprintf(StrFilePath, "%s\\%sL%c.bin", OutFolder, BaseName, InLanguageLetter);
 
-			ParseUTF16Text(OutFilePath);
-			ExportUTF16LangFiles(StrFilePath, IDFilePath);
+			switch (DetectEncodingType(OutFilePath))
+			{
+			case ENCODETYPE_UTF8_SL:
+				ParseUTF8Text_SingleLine(OutFilePath);
+				ExportUTF8LangFiles(StrFilePath, IDFilePath);
+				break;
+			case ENCODETYPE_UTF8:
+				ParseUTF8Text(OutFilePath);
+				ExportUTF8LangFiles(StrFilePath, IDFilePath);
+				break;
+			case ENCODETYPE_UTF16_SL:
+				ParseUTF16Text_SingleLine(OutFilePath);
+				ExportUTF16LangFiles(StrFilePath, IDFilePath);
+				break;
+			case ENCODETYPE_UTF16:
+			default:
+				ParseUTF16Text(OutFilePath); // UTF-16 default
+				ExportUTF16LangFiles(StrFilePath, IDFilePath);
+				break;
+			}
 		}
 
 	}
@@ -601,13 +887,6 @@ int main(int argc, char *argv[])
 
 	if (argv[1][0] == '-' && argv[1][1] == 'w') // Write mode
 	{
-		if (argv[1][2] == '8') // UTF-8
-		{
-			ParseUTF8Text(argv[2]);
-			ExportUTF8LangFiles(argv[3], argv[4]);
-			return 0;
-		}
-
 		if (argv[1][2] == '1') // TF1
 		{
 			bTF1FolderMode = true;
@@ -620,15 +899,49 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		if (argv[1][2] == 'c') // Cutin
+		if (argv[1][2] == 'c') // Single
 		{
 			printf("Unimplemented...\n");
 			return 0;
 		}
 
-		ParseUTF16Text(argv[2]);
-		ExportUTF16LangFiles(argv[3], argv[4]);
-		return 0;
+		if (argv[1][2] == '8') // UTF-8 explicit
+		{
+			ParseUTF8Text(argv[2]);
+			ExportUTF8LangFiles(argv[3], argv[4]);
+			return 0;
+		}
+
+		switch (DetectEncodingType(argv[2]))
+		{
+		case ENCODETYPE_UTF8_SL:
+			ParseUTF8Text_SingleLine(argv[2]);
+			ExportUTF8LangFiles(argv[3], argv[4]);
+			return 0;
+			break;
+		case ENCODETYPE_UTF8:
+			ParseUTF8Text(argv[2]);
+			ExportUTF8LangFiles(argv[3], argv[4]);
+			return 0;
+			break;
+		case ENCODETYPE_UTF16_SL:
+			ParseUTF16Text_SingleLine(argv[2]);
+			ExportUTF16LangFiles(argv[3], argv[4]);
+			return 0;
+			break;
+		case ENCODETYPE_UTF16:
+			ParseUTF16Text(argv[2]);
+			ExportUTF16LangFiles(argv[3], argv[4]);
+			return 0;
+			break;
+		default:
+			ParseUTF16Text(argv[2]); // UTF-16 default
+			ExportUTF16LangFiles(argv[3], argv[4]);
+			break;
+		}
+
+		return 0;		
+		
 	}
 
 	if (argv[1][0] == '-' && argv[1][1] == '8') // Read mode UTF-8
