@@ -38,6 +38,14 @@ wchar_t MkDirPath[1024];
 char LanguageLetter = 'e'; // possible Tag Force languages: j, e, g, f, i, s
 char SystemCmdBuffer[1024];
 
+// Cutin Character Words Table Stuff
+struct WordsTbl
+{
+	unsigned int StrCount;
+	unsigned int HeaderSize;
+	unsigned int FullHeaderSize;
+};
+
 int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 {
 	FILE* foffsets = fopen(InOffsetFile, "rb");
@@ -48,7 +56,7 @@ int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 		return -1;
 	}
 
-	FILE* flang = fopen(InLangFile, "r");
+	FILE* flang = fopen(InLangFile, "rb");
 	if (!flang)
 	{
 		printf("ERROR: Can't open language file %s for reading!\n", InLangFile);
@@ -93,6 +101,7 @@ int ParseStrings(const char* InLangFile, const char* InOffsetFile)
 	else
 	{
 		StringBuffer = (wchar_t*)calloc(st.st_size, sizeof(char));
+		//StringBuffer = (wchar_t*)malloc(st.st_size);
 		StringList = (wchar_t**)calloc(StringCount, sizeof(wchar_t*));
 		fread(StringBuffer, st.st_size, 1, flang);
 	}
@@ -528,6 +537,59 @@ int RepackTagForce1Folder(const char* InFolder, const char* OutFolder, const cha
 
 }
 
+int ParseChrWordsTbl(const char* InFilename, const char* OutFilename)
+{
+	FILE* fin = fopen(InFilename, "rb");
+	void* FileBuffer = NULL;
+	WordsTbl* InWordsTbl = NULL;
+	unsigned int* StrPosCalc = NULL;
+
+	if (!fin)
+	{
+		printf("ERROR: Can't open file %s for reading!\n", InFilename);
+		perror("ERROR");
+		return -1;
+	}
+
+	// read the entire file to memory
+	if (stat(InFilename, &st))
+	{
+		printf("ERROR: Can't find %s during size calculation!\n", InFilename);
+		return -1;
+	}
+
+	FileBuffer = malloc(st.st_size);
+	if (!FileBuffer)
+	{
+		printf("ERROR: Failed to allocate %d bytes for file %s!\n", st.st_size, InFilename);
+		fclose(fin);
+		return 0;
+	}
+
+	fread(FileBuffer, st.st_size, 1, fin);
+	fclose(fin);
+
+	InWordsTbl = (WordsTbl*)FileBuffer;
+	StringList = (wchar_t**)((int)FileBuffer + InWordsTbl->HeaderSize);
+	StrPosCalc = (unsigned int*)((int)FileBuffer + InWordsTbl->HeaderSize);
+	StringCount = InWordsTbl->StrCount;
+
+	// shift the list by header size + buffer location
+	for (unsigned int i = 0; i < InWordsTbl->StrCount; i++)
+	{
+		StrPosCalc[i] += (int)FileBuffer + InWordsTbl->FullHeaderSize;;
+	}
+
+	// skip the very first one, because that's how the game IDs them
+	//StringCount--;
+	//StringList = (wchar_t**)((int)FileBuffer + InWordsTbl->HeaderSize + 4);
+
+	SpitStringsToFile(OutFilename);
+	free(FileBuffer);
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	printf("Yu-Gi-Oh! Tag Force Language Tool\n");
@@ -558,6 +620,12 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
+		if (argv[1][2] == 'c') // Cutin
+		{
+			printf("Unimplemented...\n");
+			return 0;
+		}
+
 		ParseUTF16Text(argv[2]);
 		ExportUTF16LangFiles(argv[3], argv[4]);
 		return 0;
@@ -582,6 +650,14 @@ int main(int argc, char *argv[])
 		ProcessTagForce1Folder(argv[2], argv[3], LanguageLetter);
 		return 0;
 	}
+
+	if (argv[1][0] == '-' && argv[1][1] == 'c') // Read mode Single file
+	{
+		printf("Single mode\n");
+		ParseChrWordsTbl(argv[2], argv[3]);
+		return 0;
+	}
+
 
 	ParseStrings(argv[1], argv[2]);
 	SpitStringsToFile(argv[3]);
