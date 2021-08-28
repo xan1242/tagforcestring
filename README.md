@@ -18,6 +18,8 @@ USAGE (write): TagForceString -w InTextFile OutLangFile OutOffsetFile
 USAGE (write UTF-8): TagForceString -w8 InTextFile OutLangFile OutOffsetFile
 USAGE (Tag Force 1 folder): TagForceString -1 InFolder OutFolder [LanguageLetter] (example: e = English)
 USAGE (Tag Force 1 folder repack): TagForceString -w1 InFolder OutFolder [LanguageLetter] (example: j = Japanese)
+USAGE (Single): TagForceString -c InWordsTbl OutFile
+USAGE (write Single): TagForceString -wc InWordsTxt OutFile
 ```
 
 Example (read): `TagForceString EveLe.bin EveIe.bin tagforce5.txt`
@@ -30,7 +32,7 @@ Example (Tag Force 1 Folder Extraction): `TagForceString.exe -1 st01_t01_e TF1Sc
 
 Example (Tag Force 1 Folder Repack): `TagForceString.exe -w1 TF1Script st01_t01_e e`
 
-The utility extracts the result into a UTF-16 (no BOM) text file which can be opened by any text editor that supports it, such as [Kate](https://kate-editor.org). You may only need to manually set the format to be specifically Unicode UTF-16 and not UCS-2.
+The utility extracts the result into a UTF-16 text file which can be opened by any text editor that supports it, such as [Kate](https://kate-editor.org). You may only need to manually set the format to be specifically Unicode UTF-16 and not UCS-2.
 
 ## Tag Force 1 Folder Notes
 
