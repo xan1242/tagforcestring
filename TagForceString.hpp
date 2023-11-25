@@ -197,6 +197,9 @@ public:
 		return reinterpret_cast<uint8_t*>(ptrTable);
 	}
 
+	//
+	// Load a string resource from a file
+	//
 	void openFile(std::filesystem::path filename)
 	{
 		std::ifstream ifile;
@@ -238,11 +241,14 @@ public:
 		fileSize = filesize;
 	}
 
+	//
+	// Export the current string resource in memory to a file
+	//
 	void exportFile(std::filesystem::path filename)
 	{
 		if (filebuffer == nullptr)
 		{
-			throw std::runtime_error("filebuffer is null!");
+			throw std::runtime_error("YgStringResource filebuffer is null!");
 		}
 
 		std::ofstream ofile;
@@ -265,6 +271,9 @@ public:
 		ofile.close();
 	}
 
+	//
+	// Builds a string resource out of a UTF-16 string vector
+	//
 	void build(std::vector<std::u16string>* strings)
 	{
 		if (filebuffer)
@@ -306,6 +315,9 @@ public:
 		fileSize = newsize;
 	}
 
+	//
+	// Builds a string resource out of a UTF-8 string vector
+	//
 	void build(std::vector<std::u8string>* strings)
 	{
 		if (filebuffer)
