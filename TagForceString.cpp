@@ -176,8 +176,7 @@ namespace TagForceString
     }
 
     //
-    // Parses an ini-like (UTF-16 LE BOM) formatted txt file and returns a map to the given pointer.
-    // Map key is the string index.
+    // Parses an ini-like (UTF-16 LE BOM) formatted txt file and returns a vector to the given pointer.
     //
     int ParseTxtU16(std::filesystem::path txtFilename, std::vector<std::u16string>* outStrings)
     {
@@ -251,8 +250,7 @@ namespace TagForceString
     }
 
     //
-    // Parses an ini-like (UTF-8) formatted txt file and returns a map to the given pointer.
-    // Map key is the string index.
+    // Parses an ini-like (UTF-8) formatted txt file and returns a vector to the given pointer.
     //
     int ParseTxtU8(std::filesystem::path txtFilename, std::vector<std::u8string>* outStrings)
     {
