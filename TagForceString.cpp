@@ -194,23 +194,6 @@ namespace TagForceString
         }
 
         // check BOM and skip if valid...
-        // uint8_t bomchk1 = txtfile.get();
-        // uint8_t bomchk2 = txtfile.get();
-        // uint16_t bomchk = (uint16_t)(bomchk2 << 8) | bomchk1;
-        // 
-        // if (bomchk == 0xFFFE)
-        // {
-        //     txtfile.close();
-        //     std::cerr << "Big endian BOM detected! Please only use little endian files!\n";
-        //     return -2;
-        // }
-        // 
-        // if (bomchk != 0xFEFF)
-        // {
-        //     std::cout << "WARNING: Unknown or no BOM detected!\n";
-        //     txtfile.seekg(0, std::ios::_Seekbeg);
-        // }
-
         UnicodeBOMType bt = GetBOM(txtfile);
         if (bt == UnicodeBOMType::BOM_UTF16BE)
         {
@@ -286,16 +269,6 @@ namespace TagForceString
         }
 
         // check BOM and skip if valid...
-        // uint8_t bomchk1 = txtfile.get();
-        // uint8_t bomchk2 = txtfile.get();
-        // uint8_t bomchk3 = txtfile.get();
-        // 
-        // if ((bomchk1 != 0xEF) || (bomchk2 != 0xBB) || (bomchk3 != 0xBF))
-        // {
-        //     std::cout << "WARNING: Unknown or no BOM detected!\n";
-        //     txtfile.seekg(0, std::ios::_Seekbeg);
-        // }
-
         UnicodeBOMType bt = GetBOM(txtfile);
         if ((bt == UnicodeBOMType::BOM_UTF16LE) || (bt == UnicodeBOMType::BOM_UTF16BE))
         {
