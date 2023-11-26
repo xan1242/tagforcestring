@@ -114,7 +114,7 @@ private:
 		if (result >= endLoc)
 			return reinterpret_cast<uintptr_t>(&nulldata);
 
-		return ptrData + ptrTable[index];
+		return result;
 	}
 
 public:
@@ -228,6 +228,9 @@ public:
 			ifile.close();
 			throw e;
 		}
+
+		if (filebuffer)
+			free(filebuffer);
 
 		filebuffer = (uint8_t*)malloc(filesize);
 		ifile.read((char*)filebuffer, filesize);
@@ -370,10 +373,345 @@ public:
 		fileSize = 0;
 		tblSize = 0;
 	}
+
 	~YgStringResource()
 	{
 		if (filebuffer)
 			free(filebuffer);
+	}
+};
+
+class TFStoryScript
+{
+private:
+	uint32_t* strIdx;
+	size_t strCount;
+
+	uint8_t* langBuffer;
+	uintmax_t fileSizeLang;
+
+	uint32_t nulldata;
+
+	uintptr_t GetStrPtr(int index)
+	{
+		if (index >= strCount)
+			return 0;
+
+		uintptr_t result = reinterpret_cast<uintptr_t>(langBuffer) + (strIdx[index] * sizeof(char16_t));
+		uintptr_t endLoc = reinterpret_cast<uintptr_t>(langBuffer) + fileSizeLang;
+
+		if (result >= endLoc)
+			return reinterpret_cast<uintptr_t>(&nulldata);
+
+		return result;
+	}
+
+	uintptr_t GetStrPtrU8(int index)
+	{
+		if (index >= strCount)
+			return 0;
+
+		uintptr_t result = reinterpret_cast<uintptr_t>(langBuffer) + (strIdx[index] * sizeof(char8_t));
+		uintptr_t endLoc = reinterpret_cast<uintptr_t>(langBuffer) + fileSizeLang;
+
+		if (result >= endLoc)
+			return reinterpret_cast<uintptr_t>(&nulldata);
+
+		return result;
+	}
+
+public:
+	char16_t* c_wstr(int index)
+	{
+		if (index >= strCount)
+			return nullptr;
+		return reinterpret_cast<char16_t*>(GetStrPtr(index));
+	}
+
+	char* c_str(int index)
+	{
+		if (index >= strCount)
+			return nullptr;
+		return reinterpret_cast<char*>(GetStrPtrU8(index));
+	}
+
+	std::u16string u16string(int index)
+	{
+		if (index >= strCount)
+			return std::u16string();
+		return std::u16string(c_wstr(index));
+	}
+
+	std::wstring wstring(int index)
+	{
+		if (index >= strCount)
+			return std::wstring();
+		std::u16string data = u16string(index);
+		return std::wstring(data.begin(), data.end());
+	}
+
+	std::u8string u8string(int index)
+	{
+		if (index >= strCount)
+			return std::u8string();
+		return std::u8string(reinterpret_cast<char8_t*>(c_str(index)));
+	}
+
+	std::string string(int index)
+	{
+		if (index >= strCount)
+			return std::string();
+		return std::string(c_str(index));
+	}
+
+	int count()
+	{
+		return strCount;
+	}
+
+	uintmax_t datasize()
+	{
+		return fileSizeLang;
+	}
+
+	uint8_t* fileptr()
+	{
+		return langBuffer;
+	}
+
+	//
+	// Load a story script index + lang pair from their files
+	//
+	void openFile(std::filesystem::path idxFilename, std::filesystem::path langFilename)
+	{
+		std::ifstream idxfile;
+		try
+		{
+			idxfile.open(idxFilename, std::ios::binary);
+			if (!idxfile.is_open())
+			{
+				langBuffer = nullptr;
+				strIdx = nullptr;
+				std::string excstr = "idx file failure: ";
+				excstr += strerror(errno);
+				throw std::runtime_error(excstr);
+			}
+		}
+		catch (const std::exception& e)
+		{
+			throw e;
+		}
+
+		std::ifstream langfile;
+		try
+		{
+			langfile.open(langFilename, std::ios::binary);
+			if (!langfile.is_open())
+			{
+				langBuffer = nullptr;
+				strIdx = nullptr;
+				std::string excstr = "lang file failure: ";
+				excstr += strerror(errno);
+				throw std::runtime_error(strerror(errno));
+			}
+		}
+		catch (const std::exception& e)
+		{
+			throw e;
+		}
+
+		if (langBuffer)
+			free(langBuffer);
+
+		if (strIdx)
+			free(strIdx);
+
+		uintmax_t idxfilesize = 0;
+		try
+		{
+			idxfilesize = std::filesystem::file_size(idxFilename);
+		}
+		catch (const std::exception& e)
+		{
+			idxfile.close();
+			langfile.close();
+			throw e;
+		}
+
+		strIdx = (uint32_t*)malloc(idxfilesize);
+		idxfile.read((char*)strIdx, idxfilesize);
+		idxfile.close();
+		strCount = idxfilesize / sizeof(uint32_t);
+
+		uintmax_t langfilesize = 0;
+		try
+		{
+			langfilesize = std::filesystem::file_size(langFilename);
+		}
+		catch (const std::exception& e)
+		{
+			langfile.close();
+			idxfile.close();
+			throw e;
+		}
+
+		langBuffer = (uint8_t*)malloc(langfilesize);
+		langfile.read((char*)langBuffer, langfilesize);
+		langfile.close();
+
+		fileSizeLang = langfilesize;
+	}
+
+	//
+	// Export the current story script in memory to a index + lang file pair
+	//
+	void exportFile(std::filesystem::path idxFilename, std::filesystem::path langFilename)
+	{
+		if (langBuffer == nullptr)
+		{
+			throw std::runtime_error("TFStoryScript langBuffer is null!");
+		}
+
+		if (strIdx == nullptr)
+		{
+			throw std::runtime_error("TFStoryScript strIdx is null!");
+		}
+
+		std::ofstream idxfile;
+		try
+		{
+			idxfile.open(idxFilename, std::ios::binary);
+			if (!idxfile.is_open())
+			{
+				std::string excstr = "idx file failure: ";
+				excstr += strerror(errno);
+				throw std::runtime_error(excstr);
+			}
+		}
+		catch (const std::exception& e)
+		{
+			throw e;
+		}
+
+		idxfile.write((char*)strIdx, strCount * sizeof(uint32_t));
+
+		idxfile.flush();
+		idxfile.close();
+
+		std::ofstream langfile;
+		try
+		{
+			langfile.open(langFilename, std::ios::binary);
+			if (!langfile.is_open())
+			{
+				std::string excstr = "lang file failure: ";
+				excstr += strerror(errno);
+				throw std::runtime_error(excstr);
+			}
+		}
+		catch (const std::exception& e)
+		{
+			throw e;
+		}
+
+		langfile.write((char*)langBuffer, fileSizeLang);
+
+		langfile.flush();
+		langfile.close();
+	}
+
+	//
+	// Builds story script data out of a UTF-16 string vector
+	//
+	void build(std::vector<std::u16string>* strings)
+	{
+		if (langBuffer)
+			free(langBuffer);
+
+		if (strIdx)
+			free(strIdx);
+
+		// index buffer
+		strCount = strings->size();
+		strIdx = (uint32_t*)malloc(strCount * sizeof(uint32_t));
+
+		StringBuffer stringBuffer;
+		std::vector<uint32_t> offsets;
+
+		int sc = 0;
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addString(str);
+			if (currentOffset == 0)
+				strIdx[sc] = 0;
+			else
+				strIdx[sc] = currentOffset / sizeof(char16_t);
+			sc++;
+		}
+
+		// lang buffer
+		uintmax_t newsize = stringBuffer.dataSize();
+		langBuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		memcpy(langBuffer, stringBuffer.getData(), newsize);
+
+		// update ptrs
+		fileSizeLang = newsize;
+	}
+
+	//
+	// Builds story script data out of a UTF-8 string vector
+	//
+	void build(std::vector<std::u8string>* strings)
+	{
+		if (langBuffer)
+			free(langBuffer);
+
+		if (strIdx)
+			free(strIdx);
+
+		// index buffer
+		strCount = strings->size();
+		strIdx = (uint32_t*)malloc(strCount * sizeof(uint32_t));
+
+		StringBuffer stringBuffer;
+		std::vector<uint32_t> offsets;
+
+		int sc = 0;
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addString(str);
+			strIdx[sc] = currentOffset;
+			sc++;
+		}
+
+		// lang buffer
+		uintmax_t newsize = stringBuffer.dataSize();
+		langBuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		memcpy(langBuffer, stringBuffer.u8GetData(), newsize);
+
+		// update ptrs
+		fileSizeLang = newsize;
+	}
+
+	TFStoryScript()
+	{
+		strIdx = nullptr;
+		strCount = 0;
+		langBuffer = nullptr;
+		fileSizeLang = 0;
+		nulldata = 0;
+	}
+
+	~TFStoryScript()
+	{
+		if (langBuffer)
+			free(langBuffer);
+		if (strIdx)
+			free(strIdx);
 	}
 };
 

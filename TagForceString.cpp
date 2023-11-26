@@ -16,6 +16,116 @@
 
 namespace TagForceString
 {
+    enum OperatingMode 
+    {
+        BIN2TXT,
+        TXT2BIN,
+        LANG2TXT,
+        TXT2LANG
+    };
+
+    struct Options 
+    {
+        OperatingMode mode;
+        std::filesystem::path inputFilePath1;
+        std::filesystem::path inputFilePath2;
+        std::filesystem::path outputFilePath1;
+        std::filesystem::path outputFilePath2;
+        bool useUTF8 = false;       // Default is UTF-16
+        bool autodetectBOM = true;  // Default is autodetection
+    };
+
+    void printUsage(const char* programName) 
+    {
+        std::cerr << "Usage: " << programName << " [OPTIONS] MODE INPUT OUTPUT\n"
+            << "\nOPTIONS:\n"
+            << "  -u, --utf8          Use UTF-8 encoding (default is UTF-16)\n"
+            << "  -d, --no-autodetect Disable BOM autodetection for input text files\n"
+            << "\nMODES:\n"
+            << "  1. bin2txt           Convert a string resource (strtbl) file to a text file\n"
+            << "  2. txt2bin           Convert a text file to a string resource (strtbl) file\n"
+            << "  3. lang2txt          Convert a pair of lang files (index and strings) to a text file\n"
+            << "  4. txt2lang          Convert a text file to a pair of lang files (index and strings)\n"
+            << "\nEXAMPLES:\n"
+            << "  " << programName << " bin2txt input_e.bin output.txt\n"
+            << "  " << programName << " txt2bin input.txt output_e.bin\n"
+            << "  " << programName << " lang2txt langIe.bin langLe.bin output.txt\n"
+            << "  " << programName << " --utf8 txt2lang input.txt outIe.bin outLe.bin\n"
+            << '\n' << "The encoding must match on both input and output files! The tool does not perform any conversion!\n";
+    }
+
+    Options parseCommandLine(int argc, char* argv[]) 
+    {
+        Options options;
+
+        for (int i = 1; i < argc; ++i) 
+        {
+            std::string arg = argv[i];
+
+            if (arg == "-u" || arg == "--utf8") 
+            {
+                options.useUTF8 = true;
+            }
+            else if (arg == "-d" || arg == "--no-autodetect") 
+            {
+                options.autodetectBOM = false;
+            }
+            else if (arg == "bin2txt") 
+            {
+                options.mode = BIN2TXT;
+            }
+            else if (arg == "txt2bin") 
+            {
+                options.mode = TXT2BIN;
+            }
+            else if (arg == "lang2txt") 
+            {
+                options.mode = LANG2TXT;
+                if (i + 3 < argc) 
+                {
+                    options.inputFilePath1 = argv[++i];
+                    options.inputFilePath2 = argv[++i];
+                    options.outputFilePath1 = argv[++i];
+                }
+                else 
+                {
+                    std::cerr << "Insufficient arguments for lang2txt. Use '" << argv[0] << "' for help.\n";
+                    //printUsage(argv[0]);
+                    exit(1);
+                }
+            }
+            else if (arg == "txt2lang") 
+            {
+                options.mode = TXT2LANG;
+                if (i + 3 < argc) 
+                {
+                    options.inputFilePath1 = argv[++i];
+                    options.outputFilePath1 = argv[++i];
+                    options.outputFilePath2 = argv[++i];
+                }
+                else 
+                {
+                    std::cerr << "Insufficient arguments for txt2lang. Use '" << argv[0] << "' for help.\n";
+                    //printUsage(argv[0]);
+                    exit(1);
+                }
+            }
+            else if (i + 2 <= argc) 
+            {
+                options.inputFilePath1 = argv[i++];
+                options.outputFilePath1 = argv[i++];
+            }
+            else 
+            {
+                std::cerr << "Invalid arguments. Use '" << argv[0] << "' for help.\n";
+                //printUsage(argv[0]);
+                exit(1);
+            }
+        }
+
+        return options;
+    }
+
     enum UnicodeBOMType
     {
         BOM_UNKNOWN,
@@ -51,7 +161,6 @@ namespace TagForceString
     UnicodeBOMType GetBOM(std::filesystem::path filename)
     {
         std::ifstream file;
-        file.open(filename, std::ios::binary);
         try
         {
             file.open(filename, std::ios::binary);
@@ -68,6 +177,8 @@ namespace TagForceString
         UnicodeBOMType result = GetBOM(file);
 
         file.close();
+
+        return result;
     }
 
     std::u16string readlineu16(std::ifstream& file)
@@ -501,15 +612,316 @@ namespace StrResource
         return 0;
     }
 }
+
+namespace StoryScript
+{
+    //
+    // Exports a story script index + lang pair to an ini-like formatted txt file (UTF-16)
+    //
+    int ExportU16(std::filesystem::path idxFilename, std::filesystem::path langFilename, std::filesystem::path txtFilename)
+    {
+        TFStoryScript tfs;
+        try
+        {
+            tfs.openFile(idxFilename, langFilename);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for reading.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -1;
+        }
+
+        std::ofstream txtfile;
+        try
+        {
+            txtfile.open(txtFilename, std::ios::out | std::ios::binary);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open file: " << txtFilename.string() << " for writing.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -2;
+        }
+
+        // write BOM
+        txtfile.put(0xFF);
+        txtfile.put(0xFE);
+
+        for (int i = 0; i < tfs.count(); i++)
+        {
+            // write section
+            std::string sectionStr = '[' + std::to_string(i) + ']' + '\n';
+            std::u16string u16section(sectionStr.begin(), sectionStr.end());
+            txtfile.write((char*)u16section.data(), u16section.size() * sizeof(char16_t));
+
+            // write data
+            std::u16string u16data = tfs.u16string(i);
+            txtfile.write((char*)u16data.data(), u16data.size() * sizeof(char16_t));
+
+            // newline for next section
+            char16_t nl = u'\n';
+            txtfile.write((char*)&nl, sizeof(char16_t));
+
+            txtfile.flush();
+        }
+
+        txtfile.flush();
+        txtfile.close();
+
+        return 0;
+    }
+
+    //
+    // Exports a story script index + lang pair to an ini-like formatted txt file (UTF-8)
+    //
+    int ExportU8(std::filesystem::path idxFilename, std::filesystem::path langFilename, std::filesystem::path txtFilename)
+    {
+        TFStoryScript tfs;
+        try
+        {
+            tfs.openFile(idxFilename, langFilename);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for reading.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -1;
+        }
+
+        std::ofstream txtfile;
+        try
+        {
+            txtfile.open(txtFilename, std::ios::out | std::ios::binary);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open file: " << txtFilename.string() << " for writing.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -2;
+        }
+
+        // write BOM
+        txtfile.put(0xEF);
+        txtfile.put(0xBB);
+        txtfile.put(0xBF);
+
+        for (int i = 0; i < tfs.count(); i++)
+        {
+            // write section
+            std::string sectionStr = '[' + std::to_string(i) + ']' + '\n';
+            std::u8string u8section(sectionStr.begin(), sectionStr.end());
+            txtfile.write((char*)u8section.data(), u8section.size() * sizeof(char8_t));
+
+            // write data
+            std::u8string u8data = tfs.u8string(i);
+            txtfile.write((char*)u8data.data(), u8data.size() * sizeof(char8_t));
+
+            // newline for next section
+            char8_t nl = '\n';
+            txtfile.write((char*)&nl, sizeof(char8_t));
+
+            txtfile.flush();
+        }
+
+        txtfile.flush();
+        txtfile.close();
+
+        return 0;
+    }
+
+    //
+    // Imports an ini-like formatted txt file (UTF-16) and exports to a story script index + lang pair
+    //
+    int ImportU16(std::filesystem::path txtFilename, std::filesystem::path idxFilename, std::filesystem::path langFilename)
+    {
+        std::vector<std::u16string> strings;
+        int errcode = TagForceString::ParseTxtU16(txtFilename, &strings);
+        if (errcode < 0)
+        {
+            std::cerr << "ERROR: Text parser failed with code " << errcode << '\n';
+            return errcode;
+        }
+
+        TFStoryScript tfs;
+        tfs.build(&strings);
+
+        try
+        {
+            tfs.exportFile(idxFilename, langFilename);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for writing.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -2;
+        }
+
+        return 0;
+    }
+
+    //
+    // Imports an ini-like formatted txt file (UTF-8) and exports to a story script index + lang pair
+    //
+    int ImportU8(std::filesystem::path txtFilename, std::filesystem::path idxFilename, std::filesystem::path langFilename)
+    {
+        std::vector<std::u8string> strings;
+        int errcode = TagForceString::ParseTxtU8(txtFilename, &strings);
+        if (errcode < 0)
+        {
+            std::cerr << "ERROR: Text parser failed with code " << errcode << '\n';
+            return errcode;
+        }
+
+        TFStoryScript tfs;
+        tfs.build(&strings);
+
+        try
+        {
+            tfs.exportFile(idxFilename, langFilename);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for writing.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -2;
+        }
+
+        return 0;
+    }
+}
+
+
 int main(int argc, char* argv[])
 {
-    std::cout << "Yu-Gi-Oh! Tag Force Language & String Tool\n";
+    std::cout << "Yu-Gi-Oh! Tag Force Language & String Tool\n\n";
+    if (argc < 4) 
+    {
+        //std::cerr << "Insufficient arguments.\n";
+        TagForceString::printUsage(argv[0]);
+        return 1;
+    }
 
-    //int errcode = StrResource::ExportU16("teststrings.bin", "test2.txt");
-    //int errcode = TagForceString::ParseTxtU16(argv[2], nullptr);
-    //int errcode = StrResource::ImportU16(argv[2], "teststrings.bin");
-    //int errcode = StrResource::ImportU8("u8test.txt", "u8teststrings.bin");
-    int errcode = StrResource::ExportU8("u8teststrings.bin", "u8test2.txt");
+    TagForceString::Options options = TagForceString::parseCommandLine(argc, argv);
+    TagForceString::UnicodeBOMType curBOM = TagForceString::UnicodeBOMType::BOM_UNKNOWN;
 
-    return errcode;
+    if (options.useUTF8)
+        std::cout << "UTF-8 mode enabled!\n";
+
+    if (((options.mode == TagForceString::OperatingMode::TXT2BIN) || (options.mode == TagForceString::OperatingMode::TXT2LANG))
+        && (options.autodetectBOM && !options.useUTF8))
+    {
+        try
+        {
+            curBOM = TagForceString::GetBOM(options.inputFilePath1);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open file: " << options.inputFilePath1.string() << " for reading.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -1;
+        }
+
+        std::cout << "BOM: ";
+        switch (curBOM)
+        {
+            case TagForceString::UnicodeBOMType::BOM_UTF8:
+            {
+                std::cout << "UTF-8";
+                options.useUTF8 = true;
+                break;
+            }
+        
+            case TagForceString::UnicodeBOMType::BOM_UTF16LE:
+            {
+                std::cout << "UTF-16 Little Endian";
+                break;
+            }
+        
+            case TagForceString::UnicodeBOMType::BOM_UTF16BE:
+            {
+                std::cout << "UTF-16 Big Endian";
+                break;
+            }
+        
+            default:
+            {
+                std::cout << "Unknown";
+                break;
+            }
+        }
+        
+        std::cout << '\n';
+
+        if (curBOM == TagForceString::UnicodeBOMType::BOM_UTF16BE)
+        {
+            std::cerr << "Big endian BOM detected! Please only use little endian files!\n";
+            return 2;
+        }
+
+
+    }
+
+    switch (options.mode)
+    {
+        case TagForceString::OperatingMode::BIN2TXT:
+        {
+            std::cout << "Converting: " << '\n' 
+                << " <- " << options.inputFilePath1.string() << '\n'
+                << " -> " << options.outputFilePath1.string() << '\n';
+
+            if (options.useUTF8)
+                return StrResource::ExportU8(options.inputFilePath1, options.outputFilePath1);
+            else
+                return StrResource::ExportU16(options.inputFilePath1, options.outputFilePath1);
+
+            break;
+        }
+
+        case TagForceString::OperatingMode::TXT2BIN:
+        {
+            std::cout << "Converting: " << '\n'
+                << " <- " << options.inputFilePath1.string() << '\n'
+                << " -> " << options.outputFilePath1.string() << '\n';
+
+            if (options.useUTF8)
+                return StrResource::ImportU8(options.inputFilePath1, options.outputFilePath1);
+            else
+                return StrResource::ImportU16(options.inputFilePath1, options.outputFilePath1);
+
+            break;
+        }
+
+        case TagForceString::OperatingMode::LANG2TXT:
+        {
+            std::cout << "Converting: " << '\n'
+                << " <- " << options.inputFilePath1.string() << '\n'
+                << " <- " << options.inputFilePath2.string() << '\n'
+                << " -> " << options.outputFilePath1.string() << '\n';
+
+            if (options.useUTF8)
+                return StoryScript::ExportU8(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1);
+            else
+                return StoryScript::ExportU16(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1);
+
+            break;
+        }
+
+        case TagForceString::OperatingMode::TXT2LANG:
+        {
+            std::cout << "Converting: " << '\n'
+                << " <- " << options.inputFilePath1.string() << '\n'
+                << " -> " << options.outputFilePath1.string() << '\n'
+                << " -> " << options.outputFilePath2.string() << '\n';
+
+            if (options.useUTF8)
+                return StoryScript::ImportU8(options.inputFilePath1, options.outputFilePath1, options.outputFilePath2);
+            else
+                return StoryScript::ImportU16(options.inputFilePath1, options.outputFilePath1, options.outputFilePath2);
+
+            break;
+        }
+    }
+
+    return 0;
 }
