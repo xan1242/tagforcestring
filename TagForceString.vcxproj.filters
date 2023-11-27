@@ -23,5 +23,14 @@
     <ClInclude Include="TagForceString.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TF1Folder.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StrResource.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StoryScript.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
