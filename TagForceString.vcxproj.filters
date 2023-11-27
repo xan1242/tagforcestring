@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="thirdparty">
+      <UniqueIdentifier>{aea55b38-aedf-406d-a1ff-60990d928ed3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="thirdparty\zlib">
+      <UniqueIdentifier>{3cf6c7a2-973e-45e3-a102-72ca38795b9e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="TagForceString.cpp">
@@ -31,6 +37,9 @@
     </ClInclude>
     <ClInclude Include="StoryScript.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="thirdparty\zlib\zlib.h">
+      <Filter>thirdparty\zlib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -4,12 +4,62 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include <zlib.h>
 
 #ifndef TF1FOLDER_HDR
 #define TF1FOLDER_HDR
 
 namespace TF1Folder
 {
+    bool extractGzFile(std::filesystem::path gzFilePath, std::filesystem::path outputPath)
+    {
+        // Open the input file (gzipped file)
+#ifdef _MSC_VER
+        gzFile gzFile = gzopen_w(gzFilePath.wstring().c_str(), "rb");
+#else
+        gzFile gzFile = gzopen(gzFilePath.string().c_str(), "rb");
+#endif
+        if (gzFile == nullptr) 
+        {
+            std::cerr << "ERROR: Can't open gzipped file: " << gzFilePath.string() << std::endl;
+            return false;
+        }
+
+        // Open the output file
+        std::ofstream outputFile(outputPath, std::ios::out | std::ios::binary);
+        if (!outputFile.is_open()) 
+        {
+            std::cerr << "ERROR: Can't open gzip output file: " << outputPath.string() << std::endl;
+            gzclose(gzFile);
+            return false;
+        }
+
+        const int bufferSize = 1024;
+        char buffer[bufferSize];
+
+        // Read and write data until the end of the gzipped file
+        int bytesRead;
+        while ((bytesRead = gzread(gzFile, buffer, bufferSize)) > 0) 
+        {
+            outputFile.write(buffer, bytesRead);
+        }
+
+        // Check for errors or premature end of file
+        if (gzeof(gzFile) == 0) 
+        {
+            std::cerr << "ERROR: Can't read gzipped file: " << gzFilePath << std::endl;
+            gzclose(gzFile);
+            outputFile.close();
+            return false;
+        }
+
+        // Close the input and output files
+        gzclose(gzFile);
+        outputFile.close();
+
+        return true;
+    }
+
     int ExportFolderU16(std::filesystem::path inFolder, std::filesystem::path outFolder)
     {
         if (!std::filesystem::exists(inFolder))
@@ -33,6 +83,7 @@ namespace TF1Folder
         }
 
         std::vector<std::u8string> processedEntries;
+        bool bHaveTempFiles = false;
 
         //
         // expected filenames are in format:
@@ -136,38 +187,42 @@ namespace TF1Folder
 
             if (bCompressed)
             {
-                // decompress the first file
+                // decompress the file to a temp directory
+                bHaveTempFiles = true;
+                std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "tfstemp1.bin";
 
-                // TODO: put decompress code here & update name with temp
-                // if (bOtherIsIdx)
-                // {
-                // 
-                // }
-                // else
-                // {
-                // 
-                // }
+                bool resultDecomp = extractGzFile(entry.path(), tempFile);
+                if (!resultDecomp)
+                {
+                    std::cout << '\n';
+                    processedEntries.push_back(strName);
+                    continue;
+                }
 
-                processedEntries.push_back(strName);
-                continue;
+                if (bOtherIsIdx)
+                    langPath = tempFile;
+                else
+                    idxPath = tempFile;
             }
 
             if (bOtherCompressed)
             {
-                // decompress the second file
+                // decompress the file to a temp directory
+                bHaveTempFiles = true;
+                std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "tfstemp2.bin";
 
-                // TODO: put decompress code here & update name with temp
-                // if (bOtherIsIdx)
-                // {
-                // 
-                // }
-                // else
-                // {
-                // 
-                // }
+                bool resultDecomp = extractGzFile(otherEntry, tempFile);
+                if (!resultDecomp)
+                {
+                    std::cout << '\n';
+                    processedEntries.push_back(strName);
+                    continue;
+                }
 
-                processedEntries.push_back(strName);
-                continue;
+                if (bOtherIsIdx)
+                    idxPath = tempFile;
+                else
+                    langPath = tempFile;
             }
 
             StoryScript::ExportU16(idxPath, langPath, outPath);
@@ -176,6 +231,20 @@ namespace TF1Folder
 
             processedEntries.push_back(strName);
         }
+
+        // cleanup temp files
+        if (bHaveTempFiles)
+        {
+            std::filesystem::path tempFile1 = std::filesystem::temp_directory_path() / "tfstemp1.bin";
+            std::filesystem::path tempFile2 = std::filesystem::temp_directory_path() / "tfstemp2.bin";
+
+            if (std::filesystem::exists(tempFile1))
+                std::filesystem::remove(tempFile1);
+
+            if (std::filesystem::exists(tempFile2))
+                std::filesystem::remove(tempFile2);
+        }
+
 
         return 0;
     }
