@@ -724,7 +724,9 @@ namespace TagForceString
 		BIN2TXT,
 		TXT2BIN,
 		LANG2TXT,
-		TXT2LANG
+		TXT2LANG,
+		FOLD2TXT,
+		TXT2FOLD
 	};
 
 	struct Options
@@ -749,6 +751,8 @@ namespace TagForceString
 			<< "  2. txt2bin           Convert a text file to a string resource (strtbl) file\n"
 			<< "  3. lang2txt          Convert a pair of lang files (index and strings) to a text file\n"
 			<< "  4. txt2lang          Convert a text file to a pair of lang files (index and strings)\n"
+			<< "  5. fold2txt          Batch convert a folder with lang file pairs to a folder with text files\n"
+			<< "  6. txt2fold          Batch convert a folder with text files to a folder with lang file pairs\n"
 			<< "\nEXAMPLES:\n"
 			<< "  " << programName << " bin2txt input_e.bin output.txt\n"
 			<< "  " << programName << " txt2bin input.txt output_e.bin\n"
@@ -780,6 +784,14 @@ namespace TagForceString
 			else if (arg == "txt2bin")
 			{
 				options.mode = TXT2BIN;
+			}
+			else if (arg == "fold2txt")
+			{
+				options.mode = FOLD2TXT;
+			}
+			else if (arg == "txt2fold")
+			{
+				options.mode = TXT2FOLD;
 			}
 			else if (arg == "lang2txt")
 			{
