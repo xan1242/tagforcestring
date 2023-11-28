@@ -75,8 +75,6 @@ int main(int argc, char* argv[])
             std::cerr << "Big endian BOM detected! Please only use little endian files!\n";
             return 2;
         }
-
-
     }
 
     switch (options.mode)
