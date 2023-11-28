@@ -1,6 +1,13 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+
+#ifdef _MSC_VER
+#ifdef WIN32
+#define ZLIB_WINAPI
+#endif
+#endif
+
 #include <zlib.h>
 
 #ifndef ZLIBWRAPPER_HDR
