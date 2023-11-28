@@ -479,6 +479,16 @@ public:
 		return langBuffer;
 	}
 
+	uint8_t* idxptr()
+	{
+		return reinterpret_cast<uint8_t*>(strIdx);
+	}
+
+	uintmax_t idxsize()
+	{
+		return strCount * sizeof(uint32_t);
+	}
+
 	//
 	// Load a story script index + lang pair from their files
 	//

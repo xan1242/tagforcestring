@@ -7,7 +7,6 @@
 #include <unordered_map>
 #include <vector>
 #include <functional>
-#include "TFStringClasses.hpp"
 
 #ifndef TFSTRING_HDR
 #define TFSTRING_HDR
@@ -53,7 +52,13 @@ namespace TagForceString
 			<< "  " << programName << " txt2bin input.txt output_e.bin\n"
 			<< "  " << programName << " lang2txt langIe.bin langLe.bin output.txt\n"
 			<< "  " << programName << " --utf8 txt2lang input.txt outIe.bin outLe.bin\n"
-			<< '\n' << "The encoding must match on both input and output files! The tool does not perform any conversion!\n";
+			<< "  " << programName << " fold2txt in_folder out_folder\n"
+			<< "  " << programName << " txt2fold in_folder out_folder\n"
+			<< "\nNOTES:\n"
+			<< " - Folder modes MUST follow the correct filename format! (e.g. langIe.bin & langLe.bin & lang_e.txt)\n"
+			<< " - The encoding must match on both input and output files! The tool does not perform any conversion!\n"
+			<< "For more information, please read the README."
+			<< '\n';
 	}
 
 	Options parseCommandLine(int argc, char* argv[])

@@ -41,5 +41,11 @@
     <ClInclude Include="thirdparty\zlib\zlib.h">
       <Filter>thirdparty\zlib</Filter>
     </ClInclude>
+    <ClInclude Include="TFStringClasses.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ZlibWrapper.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

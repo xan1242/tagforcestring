@@ -4,6 +4,7 @@
 #include <fstream>
 #include <filesystem>
 #include "TagForceString.hpp"
+#include "TFStringClasses.hpp"
 
 #ifndef STRRESOURCE_HDR
 #define STRRESOURCE_HDR

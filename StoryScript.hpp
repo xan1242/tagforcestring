@@ -4,6 +4,7 @@
 #include <fstream>
 #include <filesystem>
 #include "TagForceString.hpp"
+#include "TFStringClasses.hpp"
 
 #ifndef STORYSCRIPT_HDR
 #define STORYSCRIPT_HDR
