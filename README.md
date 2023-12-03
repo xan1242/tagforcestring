@@ -12,7 +12,7 @@ This tool was designed to aid in translation of the games.
 
 - Batch convert a folder with language bins to a folder with editable text files (and back)
 
-- UTF-8 writing option
+- UTF-8 & Shift-JIS writing option
 
 - String reusage optimization
 
@@ -22,8 +22,8 @@ This tool was designed to aid in translation of the games.
 Usage: TagForceString [OPTIONS] MODE INPUT OUTPUT
 
 OPTIONS:
-  -u, --utf8          Use UTF-8 encoding (default is UTF-16)
-  -d, --no-autodetect Disable BOM autodetection for input text files
+  -u, --utf8          Use UTF-8 / 8-bit encoding (default is UTF-16)
+  -d, --no-bom        Disable BOM autodetection for input text files and BOM writing for output
 
 MODES:
   1. bin2txt           Convert a string resource (strtbl) file to a text file
@@ -68,21 +68,19 @@ MODES:
 
 3. To be able to use UTF-8 in the games, the game must first be patched in order to support it!
 
-4. The folder conversion modes MUST use the format of the original filenames in all cases! 
+4. To decode/encode Shift-JIS files, use `-u` & `-d` flags together
+
+5. The folder conversion modes MUST use the format of the original filenames in all cases! 
 
 It must follow the format of `<name><typechar><langchar>.bin` (or `<name><typechar><langchar>.bin.gz` if it's compressed)
 
 - Examples would be: `ImpChrMsgIe.bin` & `ImpChrMsgLe.bin`
-
-
 
 Same goes for the txt files. They must follow the format it was exported as:
 
 `<name>_<langchar>.txt` (or `<name>_<langchar>.gz.txt` if it's compressed)
 
 - Example would be: `ImpChrMsg_e.txt`
-
-
 
 Any deviations from this will result either in an error or the file being skipped!
 

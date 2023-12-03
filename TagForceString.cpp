@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
         std::cout << "UTF-8 mode enabled!\n";
 
     if (((options.mode == TagForceString::OperatingMode::TXT2BIN) || (options.mode == TagForceString::OperatingMode::TXT2LANG))
-        && (options.autodetectBOM && !options.useUTF8))
+        && (options.useBOM && !options.useUTF8))
     {
         try
         {
@@ -86,9 +86,9 @@ int main(int argc, char* argv[])
                 << " -> " << options.outputFilePath1.string() << '\n';
 
             if (options.useUTF8)
-                return StrResource::ExportU8(options.inputFilePath1, options.outputFilePath1);
+                return StrResource::ExportU8(options.inputFilePath1, options.outputFilePath1, options.useBOM);
             else
-                return StrResource::ExportU16(options.inputFilePath1, options.outputFilePath1);
+                return StrResource::ExportU16(options.inputFilePath1, options.outputFilePath1, options.useBOM);
 
             break;
         }
@@ -115,9 +115,9 @@ int main(int argc, char* argv[])
                 << " -> " << options.outputFilePath1.string() << '\n';
 
             if (options.useUTF8)
-                return StoryScript::ExportU8(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1);
+                return StoryScript::ExportU8(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1, options.useBOM);
             else
-                return StoryScript::ExportU16(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1);
+                return StoryScript::ExportU16(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1, options.useBOM);
 
             break;
         }

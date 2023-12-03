@@ -31,15 +31,15 @@ namespace TagForceString
 		std::filesystem::path outputFilePath1;
 		std::filesystem::path outputFilePath2;
 		bool useUTF8 = false;       // Default is UTF-16
-		bool autodetectBOM = true;  // Default is autodetection
+		bool useBOM = true;
 	};
 
 	void printUsage(const char* programName)
 	{
 		std::cerr << "Usage: " << programName << " [OPTIONS] MODE INPUT OUTPUT\n"
 			<< "\nOPTIONS:\n"
-			<< "  -u, --utf8          Use UTF-8 encoding (default is UTF-16)\n"
-			<< "  -d, --no-autodetect Disable BOM autodetection for input text files\n"
+			<< "  -u, --utf8          Use UTF-8 / 8-bit encoding (default is UTF-16)\n"
+			<< "  -d, --no-bom        Disable BOM autodetection for input text files and BOM writing for output\n"
 			<< "\nMODES:\n"
 			<< "  1. bin2txt           Convert a string resource (strtbl) file to a text file\n"
 			<< "  2. txt2bin           Convert a text file to a string resource (strtbl) file\n"
@@ -73,9 +73,9 @@ namespace TagForceString
 			{
 				options.useUTF8 = true;
 			}
-			else if (arg == "-d" || arg == "--no-autodetect")
+			else if (arg == "-d" || arg == "--no-bom")
 			{
-				options.autodetectBOM = false;
+				options.useBOM = false;
 			}
 			else if (arg == "bin2txt")
 			{

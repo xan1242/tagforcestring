@@ -14,7 +14,7 @@ namespace StrResource
     //
     // Exports a string resource file (strtbl) to an ini-like formatted txt file (UTF-16)
     //
-    int ExportU16(std::filesystem::path binFilename, std::filesystem::path txtFilename)
+    int ExportU16(std::filesystem::path binFilename, std::filesystem::path txtFilename, bool bWriteBOM = true)
     {
         YgStringResource ysr;
         try
@@ -40,9 +40,12 @@ namespace StrResource
             return -2;
         }
 
-        // write BOM
-        txtfile.put(0xFF);
-        txtfile.put(0xFE);
+        if (bWriteBOM)
+        {
+            // write BOM
+            txtfile.put(0xFF);
+            txtfile.put(0xFE);
+        }
 
         for (int i = 0; i < ysr.count(); i++)
         {
@@ -71,7 +74,7 @@ namespace StrResource
     //
     // Exports a string resource file (strtbl) to an ini-like formatted txt file (UTF-8)
     //
-    int ExportU8(std::filesystem::path binFilename, std::filesystem::path txtFilename)
+    int ExportU8(std::filesystem::path binFilename, std::filesystem::path txtFilename, bool bWriteBOM = true)
     {
         YgStringResource ysr;
         try
@@ -97,10 +100,13 @@ namespace StrResource
             return -2;
         }
 
-        // write BOM
-        txtfile.put(0xEF);
-        txtfile.put(0xBB);
-        txtfile.put(0xBF);
+        if (bWriteBOM)
+        {
+            // write BOM
+            txtfile.put(0xEF);
+            txtfile.put(0xBB);
+            txtfile.put(0xBF);
+        }
 
         for (int i = 0; i < ysr.count(); i++)
         {
