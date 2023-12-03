@@ -19,22 +19,31 @@ This tool was designed to aid in translation of the games.
 ## USAGE
 
 ```
+Yu-Gi-Oh! Tag Force Language & String Tool
+
 Usage: TagForceString [OPTIONS] MODE INPUT OUTPUT
 
 OPTIONS:
   -u, --utf8          Use UTF-8 / 8-bit encoding (default is UTF-16)
   -d, --no-bom        Disable BOM autodetection for input text files and BOM writing for output
+  -r, --raw           Treat string data as raw data. Useful for Shift-JIS.
 
-MODES:
-  1. bin2txt           Convert a string resource (strtbl) file to a text file
-  2. txt2bin           Convert a text file to a string resource (strtbl) file
-  3. lang2txt          Convert a pair of lang files (index and strings) to a text file
-  4. txt2lang          Convert a text file to a pair of lang files (index and strings)
-  5. fold2txt          Batch convert a folder with lang file pairs to a folder with text files
-  6. txt2fold          Batch convert a folder with text files to a folder with lang file pairs
+STRING RESOURCE MODES:
+  bin2txt           Convert a string resource (strtbl) file to a text file
+  txt2bin           Convert a text file to a string resource (strtbl) file
+
+TEXT RESOURCE MODES:
+  tbin2txt          Convert a text resource (e.g. tutorial) file to a text file
+  txt2tbin          Convert a text file to a text resource (e.g. tutorial) file
+
+LANG FILE MODES:
+  lang2txt          Convert a pair of lang files (index and strings) to a text file
+  txt2lang          Convert a text file to a pair of lang files (index and strings)
+
+FOLDER MODES:
+  fold2txt          Batch convert a folder with lang file pairs to a folder with text files
+  txt2fold          Batch convert a folder with text files to a folder with lang file pairs### Examples
 ```
-
-### Examples
 
 1. Convert a string resource bin to a txt file
    
@@ -68,7 +77,7 @@ MODES:
 
 3. To be able to use UTF-8 in the games, the game must first be patched in order to support it!
 
-4. To decode/encode Shift-JIS files, use `-u` & `-d` flags together
+4. To decode/encode Shift-JIS files, use the raw mode.
 
 5. The folder conversion modes MUST use the format of the original filenames in all cases! 
 
@@ -118,6 +127,8 @@ Be partners... With you?!
 - Strings that have exact same content will be condensed into one and each subsequent one will have a repeated pointer of the first one - this was done as an optimization to reduce file size and works perfectly fine with the games
 
 - Strings' index references are hardcoded in the game code, so you cannot change them from here
+
+- In all modes except raw, the backslash `\` and square bracket `[` `]` characters are escaped with a backslash! The square brackets are reserved character to determine sections for each string, so they must be escaped! Likewise, the backslash is the escapee, so it also has to be escaped.
 
 ## TODO
 
