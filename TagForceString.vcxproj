@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClInclude Include="StoryScript.hpp" />
     <ClInclude Include="StrResource.hpp" />
+    <ClInclude Include="TxtResource.hpp" />
     <ClInclude Include="TagForceString.hpp" />
     <ClInclude Include="TF1Folder.hpp" />
     <ClInclude Include="TFStringClasses.hpp" />

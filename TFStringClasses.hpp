@@ -36,6 +36,42 @@ public:
 		}
 	}
 
+	uint32_t addStringAligned(const std::u16string& str)
+	{
+		auto iter = stringOffsetMap.find(str);
+		if (iter != stringOffsetMap.end())
+		{
+			// String is a duplicate, return the offset of the original
+			return iter->second;
+		}
+		else {
+			// String is unique, add it to the buffer and update the offset
+			uint32_t currentOffset = offset;
+			stringOffsetMap[str] = currentOffset;
+			uint32_t strsize = static_cast<uint32_t>(str.length() * sizeof(char16_t)) + sizeof(char16_t); // Include null terminator
+			offset += strsize;
+
+			uint32_t alignoffset = calculate_aligned_address(offset, 4);
+
+
+			// Append the string to the buffer
+			appendRawData(rawbuffer, (uint8_t*)str.data(), (str.length() * sizeof(char16_t)) + sizeof(char16_t));
+
+			uintmax_t alignbytes = alignoffset - offset;
+			offset += alignbytes;
+			strsize += alignbytes;
+			while (alignbytes)
+			{
+				rawbuffer.push_back(0);
+				alignbytes--;
+			}
+			
+			stringAlignSizesMap[str] = strsize;
+
+			return currentOffset;
+		}
+	}
+
 	uint32_t addString(const std::u8string& str)
 	{
 		auto iter = stringOffsetMapU8.find(str);
@@ -57,15 +93,110 @@ public:
 		}
 	}
 
+	uint32_t addStringAligned(const std::u8string& str)
+	{
+		auto iter = stringOffsetMapU8.find(str);
+		if (iter != stringOffsetMapU8.end())
+		{
+			// String is a duplicate, return the offset of the original
+			return iter->second;
+		}
+		else {
+			// String is unique, add it to the buffer and update the offset
+			uint32_t currentOffset = offset;
+			stringOffsetMapU8[str] = currentOffset;
+			uint32_t strsize = static_cast<uint32_t>(str.length() * sizeof(char8_t)) + sizeof(char8_t); // Include null terminator
+			offset += strsize;
+
+			uint32_t alignoffset = calculate_aligned_address(offset, 4);
+
+			// Append the string to the buffer
+			appendRawData(rawbuffer, (uint8_t*)str.data(), (str.size() * sizeof(char8_t)) + sizeof(char8_t));
+
+			uintmax_t alignbytes = alignoffset - offset;
+			offset += alignbytes;
+			strsize += alignbytes;
+			while (alignbytes)
+			{
+				rawbuffer.push_back(0);
+				alignbytes--;
+			}
+
+			stringAlignSizesMapU8[str] = strsize;
+
+			return currentOffset;
+		}
+	}
+
+	uint32_t addStringRawAligned(const std::string& str)
+	{
+		auto iter = stringOffsetMapRaw.find(str);
+		if (iter != stringOffsetMapRaw.end())
+		{
+			// String is a duplicate, return the offset of the original
+			return iter->second;
+		}
+		else {
+			// String is unique, add it to the buffer and update the offset
+			uint32_t currentOffset = offset;
+			stringOffsetMapRaw[str] = currentOffset;
+			uint32_t strsize = static_cast<uint32_t>(str.length() * sizeof(char)) + sizeof(char); // Include null terminator
+			offset += strsize;
+
+			uint32_t alignoffset = calculate_aligned_address(offset, 4);
+
+			// Append the string to the buffer
+			appendRawData(rawbuffer, (uint8_t*)str.data(), (str.size() * sizeof(char)) + sizeof(char));
+
+			uintmax_t alignbytes = alignoffset - offset;
+			offset += alignbytes;
+			strsize += alignbytes;
+			while (alignbytes)
+			{
+				rawbuffer.push_back(0);
+				alignbytes--;
+			}
+
+			stringAlignSizesMapRaw[str] = strsize;
+
+			return currentOffset;
+		}
+	}
+
+	uint32_t addStringRaw(const std::string& str)
+	{
+		auto iter = stringOffsetMapRaw.find(str);
+		if (iter != stringOffsetMapRaw.end()) {
+			// String is a duplicate, return the offset of the original
+			return iter->second;
+		}
+		else {
+			// String is unique, add it to the buffer and update the offset
+			uint32_t currentOffset = offset;
+			stringOffsetMapRaw[str] = currentOffset;
+			offset += static_cast<uint32_t>(str.length()) + sizeof(char); // Include null terminator
+
+			// Append the string to the buffer
+			appendRawData(rawbuffer, (uint8_t*)str.data(), (str.size() * sizeof(char)) + sizeof(char));
+
+			return currentOffset;
+		}
+	}
+
 	// Get the buffer data
-	const char16_t* getData() const
+	const char16_t* getData()
 	{
 		return buffer.data();
 	}
 
-	const char8_t* u8GetData() const
+	const char8_t* u8GetData()
 	{
 		return u8buffer.data();
+	}
+
+	const uint8_t* rawGetData()
+	{
+		return rawbuffer.data();
 	}
 
 	uint32_t dataSize()
@@ -73,12 +204,58 @@ public:
 		return offset;
 	}
 
+	uint32_t getAlignStrSize(std::u16string str)
+	{
+		return stringAlignSizesMap[str];
+	}
+
+	uint32_t getAlignStrSize(std::u8string str)
+	{
+		return stringAlignSizesMapU8[str];
+	}
+
+	uint32_t getAlignStrSize(std::string str)
+	{
+		return stringAlignSizesMapRaw[str];
+	}
+
 private:
 	std::vector<char16_t> buffer;  // Buffer to store the strings
 	std::vector<char8_t> u8buffer;  // Buffer to store the strings
+	std::vector<uint8_t> rawbuffer;  // Buffer to store the strings
 	std::unordered_map<std::u16string, uint32_t> stringOffsetMap;  // Map to store string offsets
 	std::unordered_map<std::u8string, uint32_t> stringOffsetMapU8;  // Map to store string offsets
+	std::unordered_map<std::string, uint32_t> stringOffsetMapRaw;  // Map to store string offsets
+	std::unordered_map<std::u16string, uint32_t> stringAlignSizesMap;
+	std::unordered_map<std::u8string, uint32_t> stringAlignSizesMapU8;
+	std::unordered_map<std::string, uint32_t> stringAlignSizesMapRaw;
+
 	uint32_t offset;  // Current offset in the buffer
+
+	uintptr_t calculate_aligned_address(uintptr_t address, size_t alignment) 
+	{
+		if ((alignment & (alignment - 1)) != 0) 
+		{
+			return address;
+		}
+
+		size_t remainder = address % alignment;
+
+		size_t adjustment = (alignment - remainder) % alignment;
+
+		uintptr_t aligned_address = address + adjustment;
+
+		return aligned_address;
+	}
+
+	void appendRawData(std::vector<uint8_t>& destination, const uint8_t* source, size_t size) 
+	{
+		size_t currentSize = destination.size();
+
+		destination.resize(currentSize + size);
+
+		std::copy(source, source + size, destination.begin() + currentSize);
+	}
 };
 
 class YgStringResource
@@ -133,6 +310,13 @@ public:
 		return reinterpret_cast<char16_t*>(GetStrPtr(index));
 	}
 
+	char8_t* c_u8str(int index)
+	{
+		if (index >= hdr->count)
+			return nullptr;
+		return reinterpret_cast<char8_t*>(GetStrPtr(index));
+	}
+
 	char* c_str(int index)
 	{
 		if (index >= hdr->count)
@@ -158,7 +342,7 @@ public:
 	{
 		if (index >= hdr->count)
 			return std::u8string();
-		return std::u8string(reinterpret_cast<char8_t*>(c_str(index)));
+		return std::u8string(c_u8str(index));
 	}
 
 	std::string string(int index)
@@ -368,6 +552,50 @@ public:
 		fileSize = newsize;
 	}
 
+	//
+	// Builds a string resource out of a raw string vector
+	//
+	void build(std::vector<std::string>* strings)
+	{
+		if (filebuffer)
+			free(filebuffer);
+
+		// generate the header
+		StrHdr strhdr;
+		strhdr.count = strings->size();
+		strhdr.tblstart = sizeof(StrHdr);
+		strhdr.datastart = sizeof(StrHdr) + (strings->size() * sizeof(uint32_t));
+
+		StringBuffer stringBuffer;
+		std::vector<uint32_t> offsets;
+
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addStringRaw(str);
+			offsets.push_back(currentOffset);
+		}
+
+		// new buffer
+		uintmax_t newsize = strhdr.datastart + stringBuffer.dataSize();
+		filebuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		uintmax_t cursor = 0;
+		memcpy(filebuffer, &strhdr, sizeof(StrHdr));
+		cursor += sizeof(StrHdr);
+		memcpy(&filebuffer[cursor], offsets.data(), offsets.size() * sizeof(uint32_t));
+		cursor += offsets.size() * sizeof(uint32_t);
+		memcpy(&filebuffer[cursor], stringBuffer.rawGetData(), stringBuffer.dataSize());
+
+		// update ptrs
+		hdr = (StrHdr*)filebuffer;
+		ptrTable = reinterpret_cast<uint32_t*>(&filebuffer[hdr->tblstart]);
+		ptrData = reinterpret_cast<uintptr_t>(&filebuffer[hdr->datastart]);
+		dataSize = newsize - hdr->datastart;
+		tblSize = hdr->datastart - hdr->tblstart;
+		fileSize = newsize;
+	}
+
 	YgStringResource()
 	{
 		filebuffer = nullptr;
@@ -426,6 +654,20 @@ private:
 		return result;
 	}
 
+	uintptr_t GetStrPtrRaw(int index)
+	{
+		if (index >= strCount)
+			return 0;
+
+		uintptr_t result = reinterpret_cast<uintptr_t>(langBuffer) + (strIdx[index] * sizeof(char));
+		uintptr_t endLoc = reinterpret_cast<uintptr_t>(langBuffer) + fileSizeLang;
+
+		if (result >= endLoc)
+			return reinterpret_cast<uintptr_t>(&nulldata);
+
+		return result;
+	}
+
 public:
 	wchar_t* c_wstr(int index)
 	{
@@ -441,11 +683,18 @@ public:
 		return reinterpret_cast<char16_t*>(GetStrPtr(index));
 	}
 
+	char8_t* c_u8str(int index)
+	{
+		if (index >= strCount)
+			return nullptr;
+		return reinterpret_cast<char8_t*>(GetStrPtrU8(index));
+	}
+
 	char* c_str(int index)
 	{
 		if (index >= strCount)
 			return nullptr;
-		return reinterpret_cast<char*>(GetStrPtrU8(index));
+		return reinterpret_cast<char*>(GetStrPtrRaw(index));
 	}
 
 	std::u16string u16string(int index)
@@ -466,7 +715,7 @@ public:
 	{
 		if (index >= strCount)
 			return std::u8string();
-		return std::u8string(reinterpret_cast<char8_t*>(c_str(index)));
+		return std::u8string(c_u8str(index));
 	}
 
 	std::string string(int index)
@@ -719,6 +968,43 @@ public:
 		fileSizeLang = newsize;
 	}
 
+	//
+	// Builds story script data out of a raw string vector
+	//
+	void build(std::vector<std::string>* strings)
+	{
+		if (langBuffer)
+			free(langBuffer);
+
+		if (strIdx)
+			free(strIdx);
+
+		// index buffer
+		strCount = strings->size();
+		strIdx = (uint32_t*)malloc(strCount * sizeof(uint32_t));
+
+		StringBuffer stringBuffer;
+		std::vector<uint32_t> offsets;
+
+		int sc = 0;
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addStringRaw(str);
+			strIdx[sc] = currentOffset;
+			sc++;
+		}
+
+		// lang buffer
+		uintmax_t newsize = stringBuffer.dataSize();
+		langBuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		memcpy(langBuffer, stringBuffer.rawGetData(), newsize);
+
+		// update ptrs
+		fileSizeLang = newsize;
+	}
+
 	TFStoryScript()
 	{
 		strIdx = nullptr;
@@ -742,6 +1028,7 @@ public:
 // Has a simpler array at the top of the file
 // Each text item has an offset and a size
 // These items always have to be written in order
+// Offsets are memory aligned!
 //
 class YgTextResource
 {
@@ -769,7 +1056,7 @@ private:
 		if (index >= itemcount)
 			return 0;
 
-		uintptr_t result = ptrData + items[index].offset;
+		uintptr_t result = reinterpret_cast<uintptr_t>(filebuffer) + items[index].offset;
 		uintptr_t endLoc = reinterpret_cast<uintptr_t>(filebuffer) + fileSize;
 
 		if (result >= endLoc)
@@ -793,11 +1080,25 @@ public:
 		return reinterpret_cast<char16_t*>(GetStrPtr(index));
 	}
 
+	char8_t* c_u8str(int index)
+	{
+		if (index >= itemcount)
+			return nullptr;
+		return reinterpret_cast<char8_t*>(GetStrPtr(index));
+	}
+
 	char* c_str(int index)
 	{
 		if (index >= itemcount)
 			return nullptr;
 		return reinterpret_cast<char*>(GetStrPtr(index));
+	}
+
+	uintmax_t itemsize(int index)
+	{
+		if (index >= itemcount)
+			return 0;
+		return items[index].size;
 	}
 
 	std::u16string u16string(int index)
@@ -818,7 +1119,7 @@ public:
 	{
 		if (index >= itemcount)
 			return std::u8string();
-		return std::u8string(reinterpret_cast<char8_t*>(c_str(index)));
+		return std::u8string(c_u8str(index));
 	}
 
 	std::string string(int index)
@@ -957,8 +1258,9 @@ public:
 
 		for (const auto& str : *strings)
 		{
-			uint32_t currentOffset = stringBuffer.addString(str);
-			TxtItem ni = { currentOffset + tblSize , (str.size() + 1) * sizeof(char16_t) };
+			uint32_t currentOffset = stringBuffer.addStringAligned(str);
+			uint32_t size = stringBuffer.getAlignStrSize(str);
+			TxtItem ni = { currentOffset + tblSize , size };
 			newitems.push_back(ni);
 		}
 
@@ -970,7 +1272,7 @@ public:
 		uintmax_t cursor = 0;
 		memcpy(filebuffer, newitems.data(), tblSize);
 		cursor += tblSize;
-		memcpy(&filebuffer[cursor], stringBuffer.getData(), stringBuffer.dataSize());
+		memcpy(&filebuffer[cursor], stringBuffer.rawGetData(), stringBuffer.dataSize());
 
 		// update ptrs
 		items = (TxtItem*)filebuffer;
@@ -995,8 +1297,9 @@ public:
 
 		for (const auto& str : *strings)
 		{
-			uint32_t currentOffset = stringBuffer.addString(str);
-			TxtItem ni = { currentOffset + tblSize , (str.size() + 1) * sizeof(char8_t) };
+			uint32_t currentOffset = stringBuffer.addStringAligned(str);
+			uint32_t size = stringBuffer.getAlignStrSize(str);
+			TxtItem ni = { currentOffset + tblSize , size };
 			newitems.push_back(ni);
 		}
 
@@ -1008,7 +1311,46 @@ public:
 		uintmax_t cursor = 0;
 		memcpy(filebuffer, newitems.data(), tblSize);
 		cursor += tblSize;
-		memcpy(&filebuffer[cursor], stringBuffer.getData(), stringBuffer.dataSize());
+		memcpy(&filebuffer[cursor], stringBuffer.rawGetData(), stringBuffer.dataSize());
+
+		// update ptrs
+		items = (TxtItem*)filebuffer;
+		ptrData = reinterpret_cast<uintptr_t>(&filebuffer[items[0].offset]);
+		dataSize = newsize - items[0].offset;
+		fileSize = newsize;
+	}
+
+	//
+	// Builds a text resource out of a raw string vector
+	//
+	void build(std::vector<std::string>* strings)
+	{
+		if (filebuffer)
+			free(filebuffer);
+
+		// generate the header
+		tblSize = strings->size() * sizeof(TxtItem);
+
+		StringBuffer stringBuffer;
+		std::vector<TxtItem> newitems;
+
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addStringRawAligned(str);
+			uint32_t size = stringBuffer.getAlignStrSize(str);
+			TxtItem ni = { currentOffset + tblSize , size };
+			newitems.push_back(ni);
+		}
+
+		// new buffer
+		uintmax_t newsize = tblSize + stringBuffer.dataSize();
+		filebuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		uintmax_t cursor = 0;
+		memcpy(filebuffer, newitems.data(), tblSize);
+		cursor += tblSize;
+		memcpy(&filebuffer[cursor], stringBuffer.rawGetData(), stringBuffer.dataSize());
 
 		// update ptrs
 		items = (TxtItem*)filebuffer;

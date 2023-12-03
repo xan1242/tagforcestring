@@ -56,6 +56,8 @@ namespace StrResource
 
             // write data
             std::u16string u16data = ysr.u16string(i);
+            u16data = TagForceString::escapeCharacter(u16data, u8'\\');
+            u16data = TagForceString::escapeCharacter(u16data, u8'[');
             txtfile.write((char*)u16data.data(), u16data.size() * sizeof(char16_t));
 
             // newline for next section
@@ -117,11 +119,73 @@ namespace StrResource
 
             // write data
             std::u8string u8data = ysr.u8string(i);
+            u8data = TagForceString::escapeCharacter(u8data, u8'\\');
+            u8data = TagForceString::escapeCharacter(u8data, u8'[');
             txtfile.write((char*)u8data.data(), u8data.size() * sizeof(char8_t));
 
             // newline for next section
             char8_t nl = '\n';
             txtfile.write((char*)&nl, sizeof(char8_t));
+
+            txtfile.flush();
+        }
+
+        txtfile.flush();
+        txtfile.close();
+
+        return 0;
+    }
+
+    //
+    // Exports a string resource file (strtbl) to an ini-like formatted txt file (raw)
+    //
+    int ExportRaw(std::filesystem::path binFilename, std::filesystem::path txtFilename)
+    {
+        YgStringResource ysr;
+        try
+        {
+            ysr.openFile(binFilename);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for reading.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -1;
+        }
+
+        std::ofstream txtfile;
+        try
+        {
+            txtfile.open(txtFilename, std::ios::out | std::ios::binary);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open file: " << txtFilename.string() << " for writing.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -2;
+        }
+
+        for (int i = 0; i < ysr.count(); i++)
+        {
+            // write section
+            std::string sectionStr = '[' + std::to_string(i) + ']' + '\n';
+            txtfile.write(sectionStr.data(), sectionStr.size() * sizeof(char));
+
+            // write data
+            uintmax_t datasize = 0;
+            if ((i + 1) == ysr.count())
+            {
+                datasize = ysr.filesize() - ((uintmax_t)(ysr.c_str(i)) - (uintmax_t)(ysr.fileptr()));
+            }
+            else
+            {
+                datasize = (uintmax_t)(ysr.c_str(i + 1)) - (uintmax_t)(ysr.c_str(i));
+            }
+            
+            txtfile.write(ysr.c_str(i), datasize);
+
+            // newline for next section
+            txtfile.put('\n');
 
             txtfile.flush();
         }
@@ -170,6 +234,36 @@ namespace StrResource
     {
         std::vector<std::u8string> strings;
         int errcode = TagForceString::ParseTxtU8(txtFilename, &strings);
+        if (errcode < 0)
+        {
+            std::cerr << "ERROR: Text parser failed with code " << errcode << '\n';
+            return errcode;
+        }
+
+        YgStringResource ysr;
+        ysr.build(&strings);
+
+        try
+        {
+            ysr.exportFile(binFilename);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for writing.\n";
+            std::cerr << "Reason: " << e.what() << '\n';
+            return -2;
+        }
+
+        return 0;
+    }
+
+    //
+    // Imports an ini-like formatted txt file (raw) and exports to a string resource file (strtbl)
+    //
+    int ImportRaw(std::filesystem::path txtFilename, std::filesystem::path binFilename)
+    {
+        std::vector<std::string> strings;
+        int errcode = TagForceString::ParseTxtRaw(txtFilename, &strings);
         if (errcode < 0)
         {
             std::cerr << "ERROR: Text parser failed with code " << errcode << '\n';

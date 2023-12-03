@@ -24,6 +24,9 @@
     <ClCompile Include="TagForceString.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TxtResource.hpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TagForceString.hpp">

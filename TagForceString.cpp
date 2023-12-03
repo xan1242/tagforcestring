@@ -7,6 +7,7 @@
 #include "TagForceString.hpp"
 #include "StrResource.hpp"
 #include "StoryScript.hpp"
+#include "TxtResource.hpp"
 #include "TF1Folder.hpp"
 
 int main(int argc, char* argv[])
@@ -84,7 +85,8 @@ int main(int argc, char* argv[])
             std::cout << "Converting: " << '\n' 
                 << " <- " << options.inputFilePath1.string() << '\n'
                 << " -> " << options.outputFilePath1.string() << '\n';
-
+            if (options.useRAW)
+                return StrResource::ExportRaw(options.inputFilePath1, options.outputFilePath1);
             if (options.useUTF8)
                 return StrResource::ExportU8(options.inputFilePath1, options.outputFilePath1, options.useBOM);
             else
@@ -98,11 +100,42 @@ int main(int argc, char* argv[])
             std::cout << "Converting: " << '\n'
                 << " <- " << options.inputFilePath1.string() << '\n'
                 << " -> " << options.outputFilePath1.string() << '\n';
-
+            if (options.useRAW)
+                return StrResource::ImportRaw(options.inputFilePath1, options.outputFilePath1);
             if (options.useUTF8)
                 return StrResource::ImportU8(options.inputFilePath1, options.outputFilePath1);
             else
                 return StrResource::ImportU16(options.inputFilePath1, options.outputFilePath1);
+
+            break;
+        }
+
+        case TagForceString::OperatingMode::TBIN2TXT:
+        {
+            std::cout << "Converting: " << '\n'
+                << " <- " << options.inputFilePath1.string() << '\n'
+                << " -> " << options.outputFilePath1.string() << '\n';
+            if (options.useRAW)
+                return TxtResource::ExportRaw(options.inputFilePath1, options.outputFilePath1);
+            if (options.useUTF8)
+                return TxtResource::ExportU8(options.inputFilePath1, options.outputFilePath1, options.useBOM);
+            else
+                return TxtResource::ExportU16(options.inputFilePath1, options.outputFilePath1, options.useBOM);
+
+            break;
+        }
+
+        case TagForceString::OperatingMode::TXT2TBIN:
+        {
+            std::cout << "Converting: " << '\n'
+                << " <- " << options.inputFilePath1.string() << '\n'
+                << " -> " << options.outputFilePath1.string() << '\n';
+            if (options.useRAW)
+                return TxtResource::ImportRaw(options.inputFilePath1, options.outputFilePath1);
+            if (options.useUTF8)
+                return TxtResource::ImportU8(options.inputFilePath1, options.outputFilePath1);
+            else
+                return TxtResource::ImportU16(options.inputFilePath1, options.outputFilePath1);
 
             break;
         }
@@ -113,7 +146,8 @@ int main(int argc, char* argv[])
                 << " <- " << options.inputFilePath1.string() << '\n'
                 << " <- " << options.inputFilePath2.string() << '\n'
                 << " -> " << options.outputFilePath1.string() << '\n';
-
+            if (options.useRAW)
+                return StoryScript::ExportRaw(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1);
             if (options.useUTF8)
                 return StoryScript::ExportU8(options.inputFilePath1, options.inputFilePath2, options.outputFilePath1, options.useBOM);
             else
@@ -128,7 +162,8 @@ int main(int argc, char* argv[])
                 << " <- " << options.inputFilePath1.string() << '\n'
                 << " -> " << options.outputFilePath1.string() << '\n'
                 << " -> " << options.outputFilePath2.string() << '\n';
-
+            if (options.useRAW)
+                return StoryScript::ImportRaw(options.inputFilePath1, options.outputFilePath1, options.outputFilePath2);
             if (options.useUTF8)
                 return StoryScript::ImportU8(options.inputFilePath1, options.outputFilePath1, options.outputFilePath2);
             else
@@ -142,7 +177,8 @@ int main(int argc, char* argv[])
             std::cout << "Converting: " << '\n'
                 << " <- " << options.inputFilePath1.string() << '\n'
                 << " -> " << options.outputFilePath1.string() << '\n';
-
+            if (options.useRAW)
+                return TF1Folder::ExportFolderRaw(options.inputFilePath1, options.outputFilePath1);
             if (options.useUTF8)
                 return TF1Folder::ExportFolderU8(options.inputFilePath1, options.outputFilePath1);
             else
@@ -157,6 +193,8 @@ int main(int argc, char* argv[])
                 << " <- " << options.inputFilePath1.string() << '\n'
                 << " -> " << options.outputFilePath1.string() << '\n';
 
+            if (options.useRAW)
+                return TF1Folder::ImportFolderRaw(options.inputFilePath1, options.outputFilePath1);
             if (options.useUTF8)
                 return TF1Folder::ImportFolderU8(options.inputFilePath1, options.outputFilePath1);
             else

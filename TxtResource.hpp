@@ -6,24 +6,24 @@
 #include "TagForceString.hpp"
 #include "TFStringClasses.hpp"
 
-#ifndef STORYSCRIPT_HDR
-#define STORYSCRIPT_HDR
+#ifndef TXTRESOURCE_HDR
+#define TXTRESOURCE_HDR
 
-namespace StoryScript
+namespace TxtResource
 {
     //
-    // Exports a story script index + lang pair to an ini-like formatted txt file (UTF-16)
+    // Exports a text resource file to an ini-like formatted txt file (UTF-16)
     //
-    int ExportU16(std::filesystem::path idxFilename, std::filesystem::path langFilename, std::filesystem::path txtFilename, bool bWriteBOM = true)
+    int ExportU16(std::filesystem::path binFilename, std::filesystem::path txtFilename, bool bWriteBOM = true)
     {
-        TFStoryScript tfs;
+        YgTextResource ytr;
         try
         {
-            tfs.openFile(idxFilename, langFilename);
+            ytr.openFile(binFilename);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for reading.\n";
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for reading.\n";
             std::cerr << "Reason: " << e.what() << '\n';
             return -1;
         }
@@ -47,7 +47,7 @@ namespace StoryScript
             txtfile.put(0xFE);
         }
 
-        for (int i = 0; i < tfs.count(); i++)
+        for (int i = 0; i < ytr.count(); i++)
         {
             // write section
             std::string sectionStr = '[' + std::to_string(i) + ']' + '\n';
@@ -55,9 +55,9 @@ namespace StoryScript
             txtfile.write((char*)u16section.data(), u16section.size() * sizeof(char16_t));
 
             // write data
-            std::u16string u16data = tfs.u16string(i);
-            u16data = TagForceString::escapeCharacter(u16data, u8'\\');
-            u16data = TagForceString::escapeCharacter(u16data, u8'[');
+            std::u16string u16data = ytr.u16string(i);
+            u16data = TagForceString::escapeCharacter(u16data, u'\\');
+            u16data = TagForceString::escapeCharacter(u16data, u'[');
             txtfile.write((char*)u16data.data(), u16data.size() * sizeof(char16_t));
 
             // newline for next section
@@ -74,18 +74,18 @@ namespace StoryScript
     }
 
     //
-    // Exports a story script index + lang pair to an ini-like formatted txt file (UTF-8)
+    // Exports a text resource file to an ini-like formatted txt file (UTF-8)
     //
-    int ExportU8(std::filesystem::path idxFilename, std::filesystem::path langFilename, std::filesystem::path txtFilename, bool bWriteBOM = true)
+    int ExportU8(std::filesystem::path binFilename, std::filesystem::path txtFilename, bool bWriteBOM = true)
     {
-        TFStoryScript tfs;
+        YgTextResource ytr;
         try
         {
-            tfs.openFile(idxFilename, langFilename);
+            ytr.openFile(binFilename);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for reading.\n";
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for reading.\n";
             std::cerr << "Reason: " << e.what() << '\n';
             return -1;
         }
@@ -110,7 +110,7 @@ namespace StoryScript
             txtfile.put(0xBF);
         }
 
-        for (int i = 0; i < tfs.count(); i++)
+        for (int i = 0; i < ytr.count(); i++)
         {
             // write section
             std::string sectionStr = '[' + std::to_string(i) + ']' + '\n';
@@ -118,7 +118,7 @@ namespace StoryScript
             txtfile.write((char*)u8section.data(), u8section.size() * sizeof(char8_t));
 
             // write data
-            std::u8string u8data = tfs.u8string(i);
+            std::u8string u8data = ytr.u8string(i);
             u8data = TagForceString::escapeCharacter(u8data, u8'\\');
             u8data = TagForceString::escapeCharacter(u8data, u8'[');
             txtfile.write((char*)u8data.data(), u8data.size() * sizeof(char8_t));
@@ -137,18 +137,18 @@ namespace StoryScript
     }
 
     //
-    // Exports a story script index + lang pair to an ini-like formatted txt file (raw)
+    // Exports a text resource file to an ini-like formatted txt file (raw data)
     //
-    int ExportRaw(std::filesystem::path idxFilename, std::filesystem::path langFilename, std::filesystem::path txtFilename)
+    int ExportRaw(std::filesystem::path binFilename, std::filesystem::path txtFilename)
     {
-        TFStoryScript tfs;
+        YgTextResource ytr;
         try
         {
-            tfs.openFile(idxFilename, langFilename);
+            ytr.openFile(binFilename);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for reading.\n";
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for reading.\n";
             std::cerr << "Reason: " << e.what() << '\n';
             return -1;
         }
@@ -165,27 +165,25 @@ namespace StoryScript
             return -2;
         }
 
-        for (int i = 0; i < tfs.count(); i++)
+        for (int i = 0; i < ytr.count(); i++)
         {
             // write section
             std::string sectionStr = '[' + std::to_string(i) + ']' + '\n';
-            txtfile.write(sectionStr.data(), sectionStr.size() * sizeof(char));
+            txtfile.write(sectionStr.data(), sectionStr.size());
 
             // write data
-            uintmax_t datasize = 0;
-            if ((i + 1) == tfs.count())
-            {
-                datasize = tfs.datasize() - ((uintmax_t)(tfs.c_str(i)) - (uintmax_t)(tfs.fileptr()));
-            }
-            else
-            {
-                datasize = (uintmax_t)(tfs.c_str(i + 1)) - (uintmax_t)(tfs.c_str(i));
-            }
+            
+            // skip zeros
+            uintmax_t datasize = ytr.itemsize(i);
+            char* data = ytr.c_str(i);
+            while (data[datasize-1] == '\0')
+                datasize--;
 
-            txtfile.write(tfs.c_str(i), datasize);
+            txtfile.write(ytr.c_str(i), datasize);
 
             // newline for next section
-            txtfile.put('\n');
+            char nl = '\n';
+            txtfile.write(&nl, sizeof(char));
 
             txtfile.flush();
         }
@@ -197,9 +195,9 @@ namespace StoryScript
     }
 
     //
-    // Imports an ini-like formatted txt file (UTF-16) and exports to a story script index + lang pair
+    // Imports an ini-like formatted txt file (UTF-16) and exports to a string resource file (strtbl)
     //
-    int ImportU16(std::filesystem::path txtFilename, std::filesystem::path idxFilename, std::filesystem::path langFilename)
+    int ImportU16(std::filesystem::path txtFilename, std::filesystem::path binFilename)
     {
         std::vector<std::u16string> strings;
         int errcode = TagForceString::ParseTxtU16(txtFilename, &strings);
@@ -209,16 +207,16 @@ namespace StoryScript
             return errcode;
         }
 
-        TFStoryScript tfs;
-        tfs.build(&strings);
+        YgTextResource ytr;
+        ytr.build(&strings);
 
         try
         {
-            tfs.exportFile(idxFilename, langFilename);
+            ytr.exportFile(binFilename);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for writing.\n";
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for writing.\n";
             std::cerr << "Reason: " << e.what() << '\n';
             return -2;
         }
@@ -226,10 +224,11 @@ namespace StoryScript
         return 0;
     }
 
+
     //
-    // Imports an ini-like formatted txt file (UTF-8) and exports to a story script index + lang pair
+    // Imports an ini-like formatted txt file (UTF-8) and exports to a string resource file (strtbl)
     //
-    int ImportU8(std::filesystem::path txtFilename, std::filesystem::path idxFilename, std::filesystem::path langFilename)
+    int ImportU8(std::filesystem::path txtFilename, std::filesystem::path binFilename)
     {
         std::vector<std::u8string> strings;
         int errcode = TagForceString::ParseTxtU8(txtFilename, &strings);
@@ -239,16 +238,16 @@ namespace StoryScript
             return errcode;
         }
 
-        TFStoryScript tfs;
-        tfs.build(&strings);
+        YgTextResource ytr;
+        ytr.build(&strings);
 
         try
         {
-            tfs.exportFile(idxFilename, langFilename);
+            ytr.exportFile(binFilename);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for writing.\n";
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for writing.\n";
             std::cerr << "Reason: " << e.what() << '\n';
             return -2;
         }
@@ -257,9 +256,9 @@ namespace StoryScript
     }
 
     //
-    // Imports an ini-like formatted txt file (raw) and exports to a story script index + lang pair
+    // Imports an ini-like formatted txt file (raw) and exports to a string resource file (strtbl)
     //
-    int ImportRaw(std::filesystem::path txtFilename, std::filesystem::path idxFilename, std::filesystem::path langFilename)
+    int ImportRaw(std::filesystem::path txtFilename, std::filesystem::path binFilename)
     {
         std::vector<std::string> strings;
         int errcode = TagForceString::ParseTxtRaw(txtFilename, &strings);
@@ -269,16 +268,16 @@ namespace StoryScript
             return errcode;
         }
 
-        TFStoryScript tfs;
-        tfs.build(&strings);
+        YgTextResource ytr;
+        ytr.build(&strings);
 
         try
         {
-            tfs.exportFile(idxFilename, langFilename);
+            ytr.exportFile(binFilename);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "ERROR: Failed to open files: " << idxFilename.string() << " and " << langFilename.string() << " for writing.\n";
+            std::cerr << "ERROR: Failed to open file: " << binFilename.string() << " for writing.\n";
             std::cerr << "Reason: " << e.what() << '\n';
             return -2;
         }
