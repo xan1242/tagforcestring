@@ -42,8 +42,10 @@ LANG FILE MODES:
 
 FOLDER MODES:
   fold2txt          Batch convert a folder with lang file pairs to a folder with text files
-  txt2fold          Batch convert a folder with text files to a folder with lang file pairs### Examples
+  txt2fold          Batch convert a folder with text files to a folder with lang file pairs
 ```
+
+### Examples
 
 1. Convert a string resource bin to a txt file
    
