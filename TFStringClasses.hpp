@@ -119,7 +119,14 @@ private:
 
 public:
 
-	char16_t* c_wstr(int index)
+	wchar_t* c_wstr(int index)
+	{
+		if (index >= hdr->count)
+			return nullptr;
+		return reinterpret_cast<wchar_t*>(GetStrPtr(index));
+	}
+
+	char16_t* c_u16str(int index)
 	{
 		if (index >= hdr->count)
 			return nullptr;
@@ -137,15 +144,14 @@ public:
 	{
 		if (index >= hdr->count)
 			return std::u16string();
-		return std::u16string(c_wstr(index));
+		return std::u16string(c_u16str(index));
 	}
 
 	std::wstring wstring(int index)
 	{
 		if (index >= hdr->count)
 			return std::wstring();
-		std::u16string data = u16string(index);
-		return std::wstring(data.begin(), data.end());
+		return std::wstring(c_wstr(index));
 	}
 
 	std::u8string u8string(int index)
@@ -421,7 +427,14 @@ private:
 	}
 
 public:
-	char16_t* c_wstr(int index)
+	wchar_t* c_wstr(int index)
+	{
+		if (index >= strCount)
+			return nullptr;
+		return reinterpret_cast<wchar_t*>(GetStrPtr(index));
+	}
+
+	char16_t* c_u16str(int index)
 	{
 		if (index >= strCount)
 			return nullptr;
@@ -439,15 +452,14 @@ public:
 	{
 		if (index >= strCount)
 			return std::u16string();
-		return std::u16string(c_wstr(index));
+		return std::u16string(c_u16str(index));
 	}
 
 	std::wstring wstring(int index)
 	{
 		if (index >= strCount)
 			return std::wstring();
-		std::u16string data = u16string(index);
-		return std::wstring(data.begin(), data.end());
+		return std::wstring(c_wstr(index));
 	}
 
 	std::u8string u8string(int index)
@@ -722,6 +734,305 @@ public:
 			free(langBuffer);
 		if (strIdx)
 			free(strIdx);
+	}
+};
+
+//
+// Text Resources - used in Tag Force Special. These are different than YgStringResource
+// Has a simpler array at the top of the file
+// Each text item has an offset and a size
+// These items always have to be written in order
+//
+class YgTextResource
+{
+private:
+#pragma pack(push,1)
+	struct TxtItem
+	{
+		uint32_t offset;
+		uint32_t size;
+	};
+#pragma pack(pop)
+
+	TxtItem* items;
+	uintmax_t itemcount;
+	uint8_t* filebuffer;
+	uintptr_t ptrData;
+	uintmax_t dataSize;
+	uintmax_t tblSize;
+	uintmax_t fileSize;
+
+	uint32_t nulldata;
+
+	uintptr_t GetStrPtr(int index)
+	{
+		if (index >= itemcount)
+			return 0;
+
+		uintptr_t result = ptrData + items[index].offset;
+		uintptr_t endLoc = reinterpret_cast<uintptr_t>(filebuffer) + fileSize;
+
+		if (result >= endLoc)
+			return reinterpret_cast<uintptr_t>(&nulldata);
+
+		return result;
+	}
+
+public:
+	wchar_t* c_wstr(int index)
+	{
+		if (index >= itemcount)
+			return nullptr;
+		return reinterpret_cast<wchar_t*>(GetStrPtr(index));
+	}
+
+	char16_t* c_u16str(int index)
+	{
+		if (index >= itemcount)
+			return nullptr;
+		return reinterpret_cast<char16_t*>(GetStrPtr(index));
+	}
+
+	char* c_str(int index)
+	{
+		if (index >= itemcount)
+			return nullptr;
+		return reinterpret_cast<char*>(GetStrPtr(index));
+	}
+
+	std::u16string u16string(int index)
+	{
+		if (index >= itemcount)
+			return std::u16string();
+		return std::u16string(c_u16str(index));
+	}
+
+	std::wstring wstring(int index)
+	{
+		if (index >= itemcount)
+			return std::wstring();
+		return std::wstring(c_wstr(index));
+	}
+
+	std::u8string u8string(int index)
+	{
+		if (index >= itemcount)
+			return std::u8string();
+		return std::u8string(reinterpret_cast<char8_t*>(c_str(index)));
+	}
+
+	std::string string(int index)
+	{
+		if (index >= itemcount)
+			return std::string();
+		return std::string(c_str(index));
+	}
+
+	int count()
+	{
+		return itemcount;
+	}
+
+	uintmax_t tblsize()
+	{
+		return tblSize;
+	}
+
+	uintmax_t datasize()
+	{
+		return dataSize;
+	}
+
+	uintmax_t filesize()
+	{
+		return fileSize;
+	}
+
+	uint8_t* fileptr()
+	{
+		return filebuffer;
+	}
+
+	uint8_t* dataptr()
+	{
+		return reinterpret_cast<uint8_t*>(ptrData);
+	}
+
+	uint8_t* tblptr()
+	{
+		return reinterpret_cast<uint8_t*>(items);
+	}
+
+	//
+	// Load a text resource from a file
+	//
+	void openFile(std::filesystem::path filename)
+	{
+		std::ifstream ifile;
+		try
+		{
+			ifile.open(filename, std::ios::binary);
+			if (!ifile.is_open())
+			{
+				filebuffer = nullptr;
+				throw std::runtime_error(strerror(errno));
+			}
+		}
+		catch (const std::exception& e)
+		{
+			throw e;
+		}
+
+
+		uintmax_t filesize = 0;
+		try
+		{
+			filesize = std::filesystem::file_size(filename);
+		}
+		catch (const std::exception& e)
+		{
+			ifile.close();
+			throw e;
+		}
+
+		if (filebuffer)
+			free(filebuffer);
+
+		filebuffer = (uint8_t*)malloc(filesize);
+		ifile.read((char*)filebuffer, filesize);
+		ifile.close();
+
+		items = (TxtItem*)filebuffer;
+		itemcount = items[0].offset / sizeof(TxtItem);
+
+		ptrData = reinterpret_cast<uintptr_t>(&filebuffer[items[0].offset]);
+		dataSize = filesize - items[0].offset;
+		tblSize = items[0].offset;
+		fileSize = filesize;
+	}
+
+	//
+	// Export the current text resource in memory to a file
+	//
+	void exportFile(std::filesystem::path filename)
+	{
+		if (filebuffer == nullptr)
+		{
+			throw std::runtime_error("YgTextResource filebuffer is null!");
+		}
+
+		std::ofstream ofile;
+		try
+		{
+			ofile.open(filename, std::ios::binary);
+			if (!ofile.is_open())
+			{
+				throw std::runtime_error(strerror(errno));
+			}
+		}
+		catch (const std::exception& e)
+		{
+			throw e;
+		}
+
+		ofile.write((char*)filebuffer, fileSize);
+
+		ofile.flush();
+		ofile.close();
+	}
+
+	//
+	// Builds a text resource out of a UTF-16 string vector
+	//
+	void build(std::vector<std::u16string>* strings)
+	{
+		if (filebuffer)
+			free(filebuffer);
+
+		// generate the header
+		tblSize = strings->size() * sizeof(TxtItem);
+
+		StringBuffer stringBuffer;
+		std::vector<TxtItem> newitems;
+
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addString(str);
+			TxtItem ni = { currentOffset + tblSize , (str.size() + 1) * sizeof(char16_t) };
+			newitems.push_back(ni);
+		}
+
+		// new buffer
+		uintmax_t newsize = tblSize + stringBuffer.dataSize();
+		filebuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		uintmax_t cursor = 0;
+		memcpy(filebuffer, newitems.data(), tblSize);
+		cursor += tblSize;
+		memcpy(&filebuffer[cursor], stringBuffer.getData(), stringBuffer.dataSize());
+
+		// update ptrs
+		items = (TxtItem*)filebuffer;
+		ptrData = reinterpret_cast<uintptr_t>(&filebuffer[items[0].offset]);
+		dataSize = newsize - items[0].offset;
+		fileSize = newsize;
+	}
+
+	//
+	// Builds a text resource out of a UTF-8 string vector
+	//
+	void build(std::vector<std::u8string>* strings)
+	{
+		if (filebuffer)
+			free(filebuffer);
+
+		// generate the header
+		tblSize = strings->size() * sizeof(TxtItem);
+
+		StringBuffer stringBuffer;
+		std::vector<TxtItem> newitems;
+
+		for (const auto& str : *strings)
+		{
+			uint32_t currentOffset = stringBuffer.addString(str);
+			TxtItem ni = { currentOffset + tblSize , (str.size() + 1) * sizeof(char8_t) };
+			newitems.push_back(ni);
+		}
+
+		// new buffer
+		uintmax_t newsize = tblSize + stringBuffer.dataSize();
+		filebuffer = (uint8_t*)malloc(newsize);
+
+		// copy data
+		uintmax_t cursor = 0;
+		memcpy(filebuffer, newitems.data(), tblSize);
+		cursor += tblSize;
+		memcpy(&filebuffer[cursor], stringBuffer.getData(), stringBuffer.dataSize());
+
+		// update ptrs
+		items = (TxtItem*)filebuffer;
+		ptrData = reinterpret_cast<uintptr_t>(&filebuffer[items[0].offset]);
+		dataSize = newsize - items[0].offset;
+		fileSize = newsize;
+	}
+
+	YgTextResource()
+	{
+		filebuffer = nullptr;
+		items = nullptr;
+		itemcount = 0;
+		ptrData = 0;
+		nulldata = 0;
+		dataSize = 0;
+		fileSize = 0;
+		tblSize = 0;
+	}
+
+	~YgTextResource()
+	{
+		if (filebuffer)
+			free(filebuffer);
 	}
 };
 

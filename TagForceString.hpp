@@ -351,14 +351,33 @@ namespace TagForceString
 			{
 				char16_t ch;
 				txtfile.read((char*)&ch, sizeof(char16_t));
-				if (ch == u'[')
+				if (ch == u'\\')
 				{
-					txtfile.seekg(-static_cast<std::streamoff>(sizeof(char16_t)), std::ios::cur);
-					break;
+					char16_t nxch = u'\0';
+					if (!txtfile.eof())
+						txtfile.read((char*)&nxch, sizeof(char16_t));
+					if (nxch == u'[')
+					{
+						if (txtfile.eof())
+							break;
+						data.push_back(nxch);
+					}
+					else
+						txtfile.seekg(-static_cast<std::streamoff>(sizeof(char16_t)), std::ios::cur);
+
+					data.push_back(ch);
 				}
-				if (txtfile.eof())
-					break;
-				data.push_back(ch);
+				else
+				{
+					if (ch == u'[')
+					{
+						txtfile.seekg(-static_cast<std::streamoff>(sizeof(char16_t)), std::ios::cur);
+						break;
+					}
+					if (txtfile.eof())
+						break;
+					data.push_back(ch);
+				}
 			}
 
 			removeCRLF(data);
@@ -413,7 +432,7 @@ namespace TagForceString
 			std::u8string line = readlineu8(txtfile);
 			// trim any newline chars
 			line.erase(std::find_if(line.rbegin(), line.rend(), std::not_fn(std::function<int(int)>(::isspace))).base(), line.end());
-			if (!(!line.empty() && line.front() == '[' && line.back() == ']'))
+			if (!(!line.empty() && line.front() == u8'[' && line.back() == u8']'))
 				continue;
 
 			std::u8string idStrU8 = line.substr(1, line.length() - 2);
@@ -424,14 +443,33 @@ namespace TagForceString
 			{
 				char8_t ch;
 				txtfile.read((char*)&ch, sizeof(char8_t));
-				if (ch == '[')
+				if (ch == u8'\\')
 				{
-					txtfile.seekg(-static_cast<std::streamoff>(sizeof(char8_t)), std::ios::cur);
-					break;
+					char8_t nxch = u8'\0';
+					if (!txtfile.eof())
+						txtfile.read((char*)&nxch, sizeof(char8_t));
+					if (nxch == u8'[')
+					{
+						if (txtfile.eof())
+							break;
+						data.push_back(nxch);
+					}
+					else
+						txtfile.seekg(-static_cast<std::streamoff>(sizeof(char8_t)), std::ios::cur);
+
+					data.push_back(ch);
 				}
-				if (txtfile.eof())
-					break;
-				data.push_back(ch);
+				else
+				{
+					if (ch == u8'[')
+					{
+						txtfile.seekg(-static_cast<std::streamoff>(sizeof(char8_t)), std::ios::cur);
+						break;
+					}
+					if (txtfile.eof())
+						break;
+					data.push_back(ch);
+				}
 			}
 
 			removeCRLF(data);
